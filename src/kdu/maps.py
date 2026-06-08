@@ -13,8 +13,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
+# Roughly the geographic centre of Germany, for the map's initial view.
 GERMANY_CENTER = {"lat": 51.2, "lon": 10.4}
-"""Roughly the geographic centre of Germany, for the map's initial view."""
 
 
 def build_fake_frame(geojson: dict[str, Any], *, seed: int = 20260608) -> pd.DataFrame:

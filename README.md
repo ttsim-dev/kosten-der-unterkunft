@@ -28,10 +28,10 @@ renders inline.
 1. `scripts/prepare_gemeinden.py` downloads the OpenDataSoft `georef-germany-gemeinde`
    export (~58 MB, into the gitignored `bld/`) and simplifies it by snapping coordinates
    to a ~1 km grid, producing the slim committed `data/gemeinden.geo.json` (~9 MB).
-2. `kdu.geodata.load_geojson` loads it and stamps each feature with a unique `fid` —
+1. `kdu.geodata.load_geojson` loads it and stamps each feature with a unique `fid` —
    region **names are not unique** in Germany, so the join must key on `fid` (or the
    AGS), never the name.
-3. `kdu.maps` generates one random value per municipality and renders a Plotly
+1. `kdu.maps` generates one random value per municipality and renders a Plotly
    `choropleth_map`.
 
 ## Swapping in real data

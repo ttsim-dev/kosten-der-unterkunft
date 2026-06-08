@@ -9,7 +9,6 @@ committed ``data/gemeinden.geo.json``. Re-run to regenerate.
 
 import json
 import urllib.request
-from pathlib import Path
 from typing import Any
 
 from kdu.config import BLD, DATA
@@ -19,11 +18,12 @@ SOURCE_URL = (
     "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/"
     "georef-germany-gemeinde/exports/geojson?limit=-1"
 )
+# Grid resolution for simplification (2 ≈ 1 km), keeping the file < 10 MB.
 DECIMALS = 2
-"""Grid resolution for simplification (2 ≈ 1 km), keeping the file < 10 MB."""
 
 
 def main() -> None:
+    """Download the raw boundaries, simplify them, and write the slim file."""
     BLD.mkdir(exist_ok=True)
     DATA.mkdir(exist_ok=True)
     raw_path = BLD / "gemeinden_raw.geojson"

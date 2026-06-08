@@ -80,7 +80,7 @@ repos:
           - mdformat-ruff
         args:
           - --wrap
-          - "88"
+          - '88'
         files: (AGENTS\.md|CLAUDE\.md|README\.md)
 ci:
   autoupdate_schedule: monthly
