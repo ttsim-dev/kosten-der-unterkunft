@@ -1,8 +1,12 @@
-"""Download and simplify the Gemeinde boundaries into a slim GeoJSON.
+"""Prepare the Gemeinde data artifacts from the OpenDataSoft source.
 
-Fetches the raw OpenDataSoft ``georef-germany-gemeinde`` export (~58 MB)
-into ``bld/`` (gitignored), simplifies it to a ~1 km grid, and writes the
-committed ``data/gemeinden.geo.json``. Re-run to regenerate.
+Fetches the raw ``georef-germany-gemeinde`` export (~58 MB) into ``bld/``
+(gitignored) and writes two committed files under ``data/``:
+
+- `gemeinden.geo.json` — boundaries simplified to a ~1 km grid.
+- `gemeinde_lookup.arrow` — AGS → (Gemeinde, Kreis, Bundesland) table.
+
+Re-run to regenerate:
 
     python scripts/prepare_gemeinden.py
 """
@@ -13,6 +17,7 @@ from typing import Any
 
 from kdu.config import BLD, DATA
 from kdu.geodata import simplify_feature_collection
+from kdu.lookup import build_gemeinde_lookup
 
 SOURCE_URL = (
     "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/"
@@ -31,11 +36,17 @@ def main() -> None:
         print(f"downloading {SOURCE_URL}")
         urllib.request.urlretrieve(SOURCE_URL, raw_path)  # noqa: S310
     raw = json.loads(raw_path.read_text(encoding="utf-8"))
+
     slim = _slim_properties(simplify_feature_collection(raw, decimals=DECIMALS))
-    out_path = DATA / "gemeinden.geo.json"
-    out_path.write_text(json.dumps(slim), encoding="utf-8")
-    size_mb = out_path.stat().st_size / 1e6
-    print(f"{len(slim['features'])} Gemeinden → {out_path} ({size_mb:.1f} MB)")
+    geojson_path = DATA / "gemeinden.geo.json"
+    geojson_path.write_text(json.dumps(slim), encoding="utf-8")
+    size_mb = geojson_path.stat().st_size / 1e6
+    print(f"{len(slim['features'])} Gemeinden → {geojson_path} ({size_mb:.1f} MB)")
+
+    lookup = build_gemeinde_lookup(raw)
+    lookup_path = DATA / "gemeinde_lookup.arrow"
+    lookup.to_feather(lookup_path)
+    print(f"{len(lookup)} rows → {lookup_path}")
 
 
 def _slim_properties(geojson: dict[str, Any]) -> dict[str, Any]:

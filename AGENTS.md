@@ -29,9 +29,11 @@ Open `notebooks/germany_map.ipynb` (via `pixi run jupyter lab`) to view the figu
 - `src/kdu/geodata.py` — load boundary GeoJSON, stamp a unique `fid` per feature, and
   simplify geometry by snapping coordinates to a coarse grid (pure functions).
 - `src/kdu/maps.py` — build placeholder data and the Plotly `choropleth_map` figure.
+- `src/kdu/lookup.py` — build/load the AGS → (Gemeinde, Kreis, Bundesland) table.
 - `src/kdu/config.py` — project path constants (`SRC`, `ROOT`, `BLD`, `DATA`).
 - `scripts/prepare_gemeinden.py` — one-off: fetch the ~58 MB OpenDataSoft export into
-  `bld/` and write the slim, committed `data/gemeinden.geo.json`.
+  `bld/` and write the committed `data/gemeinden.geo.json` and
+  `data/gemeinde_lookup.arrow`.
 - `notebooks/germany_map.ipynb` — loads the slim boundaries and renders the map.
 
 The join key is `fid` (a synthetic per-feature index), never the name. Region names

@@ -34,6 +34,23 @@ renders inline.
 1. `kdu.maps` generates one random value per municipality and renders a Plotly
    `choropleth_map`.
 
+## AGS lookup table
+
+`data/gemeinde_lookup.arrow` maps each 12-digit AGS (`gem_code`) to its Gemeinde, Kreis,
+and Bundesland names (~11k rows). Load it with `kdu.lookup.load_lookup`:
+
+```python
+from kdu.config import DATA
+from kdu.lookup import load_lookup
+
+lookup = load_lookup(
+    DATA / "gemeinde_lookup.arrow"
+)  # columns: ags, gemeinde, kreis, bundesland
+```
+
+Use it to attach names to your data, or to resolve ambiguous Gemeinde names to an AGS
+via the Kreis/Bundesland.
+
 ## Swapping in real data
 
 Replace `kdu.maps.build_fake_frame` with your data. The only requirement is one row per
