@@ -122,10 +122,11 @@ source PDFs — Helgoland states 4 against the statutory 5. Select them with
 Derived from the KdU-Richtlinien and schlüssige Konzepte in `kdu_pdfs/` (catalogued in
 `kdu_manifest.csv`), revised by a full re-audit of all 400 Kreise in August 2026 that checked every
 Kreis against the responsible authority's current publication. 389 distinct documents supply
-values. Where the audit found a newer official document than the catalogued one it was used and
-added to `kdu_pdfs/`, which grew by 219 files. A `source_document` naming a file not in that folder
-is a document that was read at the authority's website but could not be saved; the field still
-names it. Document-to-Kreis assignment is in
+values. `kdu_pdfs/` separates the two provenances: `thome/` holds the 444 documents from the
+harald-thome.de collection catalogued in the manifest, and `own_research/` the 219 retrieved
+directly from the authorities during the audit, used wherever they were newer. A
+`source_document` naming a file in neither folder is a document that was read at the authority's
+website but could not be saved; the field still names it. Document-to-Kreis assignment is in
 `kdu_region_to_kreis.csv`. Converted text and searchable OCR versions are in
 `kdu_pdfs/converted_text/` and `kdu_pdfs/ocr_searchable/`.
 
