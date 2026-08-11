@@ -123,8 +123,9 @@ Derived from the KdU-Richtlinien and schlüssige Konzepte in `kdu_pdfs/` (catalo
 `kdu_manifest.csv`), revised by a full re-audit of all 400 Kreise in August 2026 that checked every
 Kreis against the responsible authority's current publication. 389 distinct documents supply
 values. Where the audit found a newer official document than the catalogued one it was used and
-downloaded; those 219 PDFs, a per-Kreis evidence note recording the table read and every correction
-made, and the audit tooling are in `kdu_audit_2026-08/`. Document-to-Kreis assignment is in
+added to `kdu_pdfs/`, which grew by 219 files. A `source_document` naming a file not in that folder
+is a document that was read at the authority's website but could not be saved; the field still
+names it. Document-to-Kreis assignment is in
 `kdu_region_to_kreis.csv`. Converted text and searchable OCR versions are in
 `kdu_pdfs/converted_text/` and `kdu_pdfs/ocr_searchable/`.
 
