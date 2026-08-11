@@ -21,8 +21,8 @@ def load_lookup(path: Path) -> pd.DataFrame:
 def build_gemeinde_lookup(raw: dict[str, Any]) -> pd.DataFrame:
     """Flatten the raw GeoJSON properties into an AGS-keyed table.
 
-    Returns a frame with columns `ags`, `gemeinde`, `kreis`, and
-    `bundesland`, sorted by AGS. The Gemeinde name is the short form
+    Returns a frame with columns `ags`, `gemeinde`, `gem_type`, `kreis`,
+    and `bundesland`, sorted by AGS. The Gemeinde name is the short form
     (`gem_name_short`), falling back to the full official name.
     """
     properties = pd.DataFrame([feature["properties"] for feature in raw["features"]])
@@ -31,6 +31,7 @@ def build_gemeinde_lookup(raw: dict[str, Any]) -> pd.DataFrame:
     frame["gemeinde"] = _unwrap(properties["gem_name_short"]).fillna(
         _unwrap(properties["gem_name"]),
     )
+    frame["gem_type"] = properties["gem_type"]
     frame["kreis"] = _unwrap(properties["krs_name"])
     frame["bundesland"] = _unwrap(properties["lan_name"])
     _fail_if_ags_not_unique(frame)
@@ -39,7 +40,9 @@ def build_gemeinde_lookup(raw: dict[str, Any]) -> pd.DataFrame:
 
 def _unwrap(column: pd.Series) -> pd.Series:
     """Unwrap the source's single-element lists (e.g. `["14"]`) to scalars."""
-    return column.map(lambda value: value[0] if isinstance(value, list) and value else value)
+    return column.map(
+        lambda value: value[0] if isinstance(value, list) and value else value
+    )
 
 
 def _fail_if_ags_not_unique(frame: pd.DataFrame) -> None:

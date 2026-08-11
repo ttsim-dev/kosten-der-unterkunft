@@ -1,1 +1,1 @@
-"""kdu — prototype choropleth maps of Germany at Gemeinde level."""
+"""Build a Plotly choropleth of Germany at Gemeinde level."""
