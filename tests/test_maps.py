@@ -186,42 +186,42 @@ def test_measures_include_wohngeld_comparison_options_in_display_order() -> None
     assert result == [
         (
             "wogg_hoechstbetrag_eur_1p",
-            "Wohngeld-Höchstbetrag, 1 Person",
+            "Wohngeld · Höchstbetrag § 12 WoGG, 1 Person",
             "€",
             ",.0f",
             False,
         ),
         (
             "wogg_hoechstbetrag_eur_2p",
-            "Wohngeld-Höchstbetrag, 2 Personen",
+            "Wohngeld · Höchstbetrag § 12 WoGG, 2 Personen",
             "€",
             ",.0f",
             False,
         ),
         (
             "wogg_hoechstbetrag_eur_4p",
-            "Wohngeld-Höchstbetrag, 4 Personen",
+            "Wohngeld · Höchstbetrag § 12 WoGG, 4 Personen",
             "€",
             ",.0f",
             False,
         ),
         (
             "kdu_vs_wogg_pct_1p",
-            "KdU ggü. Wohngeld-Höchstbetrag, 1 Person",
+            "Vergleich · Abweichung vom Wohngeld-Höchstbetrag in %, 1 Person",
             "%",
             "+,.1f",
             True,
         ),
         (
             "kdu_vs_wogg_pct_2p",
-            "KdU ggü. Wohngeld-Höchstbetrag, 2 Personen",
+            "Vergleich · Abweichung vom Wohngeld-Höchstbetrag in %, 2 Personen",
             "%",
             "+,.1f",
             True,
         ),
         (
             "kdu_vs_wogg_pct_4p",
-            "KdU ggü. Wohngeld-Höchstbetrag, 4 Personen",
+            "Vergleich · Abweichung vom Wohngeld-Höchstbetrag in %, 4 Personen",
             "%",
             "+,.1f",
             True,
@@ -242,7 +242,7 @@ def test_build_choropleth_has_base_measure_and_fifteen_dropdown_options(
         len(figure.data),
         len(figure.layout.updatemenus[0].buttons),
         figure.layout.updatemenus[0].buttons[0].label,
-    ) == (2, 15, "Mietstufe (KdU-Dokument, sonst § 12 WoGG)")
+    ) == (2, 15, "Mietstufe · Stufe 1-7")
 
 
 def test_build_choropleth_preserves_missing_values_in_measure_layer(
@@ -303,4 +303,35 @@ def test_build_choropleth_counts_only_real_gemeinden_in_coverage(
 
     figure = build_choropleth(geojson=geojson, frame=frame)
 
-    assert figure.layout.title.text.endswith("2 von 2 Gemeinden")
+    assert "2 von 2 Gemeinden mit Wert" in figure.layout.title.text
+
+
+def test_build_choropleth_title_separates_missing_from_other_rent_concept(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """A Gemeinde capped as Nettokaltmiete is reported as such, not as a gap."""
+    kdu.loc[kdu["ags_gemeinde"].eq("09162000"), "max_bruttokaltmiete_eur_4p"] = np.nan
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+
+    figure = build_choropleth(
+        geojson=geojson,
+        frame=frame,
+        initial_measure="max_bruttokaltmiete_eur_4p",
+    )
+
+    assert "1 als Nettokaltmiete geregelt" in figure.layout.title.text
+
+
+def test_build_choropleth_title_reports_the_document_vintage(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """The subtitle states the range of effective dates it was given."""
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+
+    figure = build_choropleth(geojson=geojson, frame=frame, vintage="2019-2026")
+
+    assert "Stand der Richtlinien 2019-2026" in figure.layout.title.text

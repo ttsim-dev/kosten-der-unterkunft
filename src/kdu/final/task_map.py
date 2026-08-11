@@ -32,6 +32,19 @@ def task_map(
     gemeinde_lookup = pd.read_feather(gemeinde_lookup_file)
 
     frame = build_map_frame(geojson, kdu_gemeinden, gemeinde_lookup)
-    figure = build_choropleth(geojson, frame)
+    figure = build_choropleth(
+        geojson,
+        frame,
+        vintage=_describe_vintage(kdu_gemeinden["valid_from"]),
+    )
 
     figure.write_html(germany_map_file)
+
+
+def _describe_vintage(valid_from: pd.Series) -> str:
+    """Summarise the effective dates of the underlying documents as a year range."""
+    years = pd.to_numeric(valid_from.str.slice(0, 4), errors="coerce").dropna()
+    if years.empty:
+        return ""
+    first, last = int(years.min()), int(years.max())
+    return str(first) if first == last else f"{first}-{last}"

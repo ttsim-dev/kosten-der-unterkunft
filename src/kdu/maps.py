@@ -78,6 +78,7 @@ def build_choropleth(
     frame: pd.DataFrame,
     *,
     initial_measure: str = MEASURES[0].key,
+    vintage: str = "",
 ) -> go.Figure:
     """Build an interactive Gemeinde choropleth with a measure dropdown.
 
@@ -85,6 +86,8 @@ def build_choropleth(
         geojson: Gemeinde feature collection carrying `fid` properties.
         frame: Map frame returned by `build_map_frame`.
         initial_measure: Stable key of the measure shown initially.
+        vintage: Range of document effective dates, e.g. `"2019-2026"`, shown in the
+            subtitle. Omitted when empty.
 
     Returns:
         A two-layer Plotly MapLibre figure.
@@ -104,9 +107,12 @@ def build_choropleth(
             ),
         ],
     )
-    buttons = [_build_measure_button(frame=frame, spec=spec) for spec in MEASURES]
+    buttons = [
+        _build_measure_button(frame=frame, spec=spec, vintage=vintage)
+        for spec in MEASURES
+    ]
     figure.update_layout(
-        title={"text": _build_title(frame=frame, spec=initial_spec)},
+        title={"text": _build_title(frame=frame, spec=initial_spec, vintage=vintage)},
         map={"style": "carto-positron", "center": GERMANY_CENTER, "zoom": 4.7},
         margin={"r": 0, "t": 40, "l": 0, "b": 0},
         updatemenus=[{"buttons": buttons}],
@@ -183,7 +189,12 @@ def _build_measure_trace(
     )
 
 
-def _build_measure_button(*, frame: pd.DataFrame, spec: MeasureSpec) -> dict[str, Any]:
+def _build_measure_button(
+    *,
+    frame: pd.DataFrame,
+    spec: MeasureSpec,
+    vintage: str = "",
+) -> dict[str, Any]:
     lower, upper = compute_colour_range(values=frame[spec.column], spec=spec)
     trace_update = {
         "z": [frame[spec.column].tolist()],
@@ -199,7 +210,7 @@ def _build_measure_button(*, frame: pd.DataFrame, spec: MeasureSpec) -> dict[str
         "method": "update",
         "args": [
             trace_update,
-            {"title.text": _build_title(frame=frame, spec=spec)},
+            {"title.text": _build_title(frame=frame, spec=spec, vintage=vintage)},
             [1],
         ],
     }
@@ -218,23 +229,59 @@ def _build_customdata(*, frame: pd.DataFrame, spec: MeasureSpec) -> list[list[An
 
 
 def _build_hovertemplate(spec: MeasureSpec) -> str:
-    unit = f" {spec.unit}" if spec.unit else ""
+    unit = f" {spec.colourbar_title or spec.unit}" if spec.unit else ""
     return (
         "<b>%{customdata[0]}</b><br>"
         "Kreis: %{customdata[1]}<br>"
-        f"{spec.label}: %{{customdata[2]:{spec.hover_format}}}{unit}"
+        f"{_hover_label(spec)}: %{{customdata[2]:{spec.hover_format}}}{unit}"
         "<extra></extra>"
     )
 
 
-def _build_title(*, frame: pd.DataFrame, spec: MeasureSpec) -> str:
+def _hover_label(spec: MeasureSpec) -> str:
+    """Strip the dropdown's group prefix so tooltips stay short."""
+    return spec.label.split(" · ", maxsplit=1)[-1]
+
+
+def _build_title(
+    *,
+    frame: pd.DataFrame,
+    spec: MeasureSpec,
+    vintage: str = "",
+) -> str:
+    """Compose the two-line figure title.
+
+    The first line names what the colour shows, the second gives the legal basis,
+    the unit, how many Gemeinden carry a value, and why the rest do not.
+    """
+    headline = spec.headline or spec.label
+    parts = [spec.context] if spec.context else []
+    parts.append(_describe_coverage(frame=frame, spec=spec))
+    if vintage:
+        parts.append(f"Stand der Richtlinien {vintage}")
+    return f"{headline}<br><sup>{' · '.join(parts)}</sup>"
+
+
+def _describe_coverage(*, frame: pd.DataFrame, spec: MeasureSpec) -> str:
+    """Split the Gemeinden into those with a value and the reasons the rest lack one."""
     is_gemeinde = frame["gem_type"].ne("Gemeindefreies Gebiet")
-    coverage = int(frame.loc[is_gemeinde, spec.column].notna().sum())
+    present = frame.loc[is_gemeinde, spec.column].notna()
     denominator = int(is_gemeinde.sum())
-    return (
-        f"{spec.label} — {_format_count(coverage)} von "
-        f"{_format_count(denominator)} Gemeinden"
-    )
+    covered = int(present.sum())
+    pieces = [
+        f"{_format_count(covered)} von {_format_count(denominator)} Gemeinden mit Wert",
+    ]
+    remainder = denominator - covered
+    if spec.counterpart_column and spec.counterpart_column in frame.columns:
+        counterpart = int(
+            (~present & frame.loc[is_gemeinde, spec.counterpart_column].notna()).sum(),
+        )
+        if counterpart:
+            pieces.append(f"{_format_count(counterpart)} {spec.counterpart_text}")
+            remainder -= counterpart
+    if remainder:
+        pieces.append(f"{_format_count(remainder)} ohne Angabe")
+    return ", ".join(pieces)
 
 
 def _format_count(value: int) -> str:
@@ -269,7 +316,7 @@ def _build_colorbar(
     lower: float,
     upper: float,
 ) -> dict[str, Any]:
-    title = spec.unit or "Mietstufe"
+    title = spec.colourbar_title or spec.unit or "Mietstufe"
     if spec.is_ordinal:
         return {
             "title": {"text": title},
