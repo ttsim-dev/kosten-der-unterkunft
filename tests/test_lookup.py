@@ -11,6 +11,7 @@ RAW = {
                 "gem_code": ["146270060060"],
                 "gem_name": ["Stadt Großenhain"],
                 "gem_name_short": ["Großenhain"],
+                "gem_type": "Stadt",
                 "krs_name": ["Landkreis Meißen"],
                 "lan_name": ["Sachsen"],
             },
@@ -20,6 +21,7 @@ RAW = {
                 "gem_code": ["011110000000"],
                 "gem_name": ["Kiel"],
                 "gem_name_short": ["Kiel"],
+                "gem_type": "Stadt",
                 "krs_name": ["Kiel"],
                 "lan_name": ["Schleswig-Holstein"],
             },
@@ -34,13 +36,20 @@ def test_build_gemeinde_lookup_maps_ags_to_names() -> None:
     expected_first = {
         "ags": "011110000000",
         "gemeinde": "Kiel",
+        "gem_type": "Stadt",
         "kreis": "Kiel",
         "bundesland": "Schleswig-Holstein",
     }
     # Result.
     result = build_gemeinde_lookup(RAW)
     # Assert.
-    assert list(result.columns) == ["ags", "gemeinde", "kreis", "bundesland"]
+    assert list(result.columns) == [
+        "ags",
+        "gemeinde",
+        "gem_type",
+        "kreis",
+        "bundesland",
+    ]
     assert result.iloc[0].to_dict() == expected_first
 
 

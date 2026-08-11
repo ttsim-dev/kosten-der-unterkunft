@@ -1,59 +1,53 @@
 # kdu
 
-Prototype choropleth maps of Germany at **Gemeinde** level (~11,000 municipalities),
-filled with **placeholder data**. It proves out the render + join pipeline; the real
-task swaps the fake values for your data, joined on the official AGS (`gem_code`) rather
-than on names (which are not unique across Germany).
+This repo provides a plotly choropleth of Germany at Gemeinde level. It depics the
+maximum Kosten der Unterkunft at the Gemeindelevel and compares it with the maximum
+Wohngeld rent.
 
-## Setup
+Data is stored in `data/kdu_gemeinden.csv` and indexed at the Amtlicher
+Gemeindeschlüssel (AGS) level.
+
+Much of this is based on Harald Thomé's
+[KdU-Richtlinien und Mietobergrenzen](https://harald-thome.de/informationen/bundesweite-dienstanweisungen-kdu.html)
+collection of Jobcenter and Sozialamt directives on angemessene Unterkunftskosten.
+
+## Setup and use
 
 ```bash
 pixi install
-pixi run prepare-gemeinden    # only needed to (re)generate data/gemeinden.geo.json
+pixi run pytask             # build bld/germany_map.html
+pixi run pytest
+pixi run ty
+pixi run prek run --all-files
 ```
 
-`data/gemeinden.geo.json` is committed, so the notebook works without the download step.
+## Data and map
 
-## View the map
+- `data/kdu_gemeinden.csv` is the single map table, with one row per geometry. It
+  contains the KdU measures, Mietstufen, Wohngeld Höchstbeträge, comparisons, source
+  documents, validity dates, and notes. Empty measure cells mean that the cited KdU
+  document does not state the value.
+- `data/gemeinden.geo.json` contains boundaries simplified to a roughly 1 km grid,
+  together with each geometry's 12-digit `gem_code` and Gemeinde name.
+- `data/gemeinde_lookup.arrow` maps the 12-digit code to Gemeinde, Gemeinde type, Kreis,
+  and Bundesland.
+- `data/kdu_codebook.md` defines all CSV columns, rent concepts, empty-cell semantics,
+  and known limitations.
 
-```bash
-pixi run jupyter lab
-```
+## Sources
 
-Open `notebooks/germany_map.ipynb` and run all cells — the interactive Gemeinde map
-renders inline.
-
-## How it works
-
-1. `scripts/prepare_gemeinden.py` downloads the OpenDataSoft `georef-germany-gemeinde`
-   export (~58 MB, into the gitignored `bld/`) and simplifies it by snapping coordinates
-   to a ~1 km grid, producing the slim committed `data/gemeinden.geo.json` (~9 MB).
-1. `kdu.geodata.load_geojson` loads it and stamps each feature with a unique `fid` —
-   region **names are not unique** in Germany, so the join must key on `fid` (or the
-   AGS), never the name.
-1. `kdu.maps` generates one random value per municipality and renders a Plotly
-   `choropleth_map`.
-
-## AGS lookup table
-
-`data/gemeinde_lookup.arrow` maps each 12-digit AGS (`gem_code`) to its Gemeinde, Kreis,
-and Bundesland names (~11k rows). Load it with `kdu.lookup.load_lookup`:
-
-```python
-from kdu.config import DATA
-from kdu.lookup import load_lookup
-
-lookup = load_lookup(
-    DATA / "gemeinde_lookup.arrow"
-)  # columns: ags, gemeinde, kreis, bundesland
-```
-
-Use it to attach names to your data, or to resolve ambiguous Gemeinde names to an AGS
-via the Kreis/Bundesland.
-
-## Swapping in real data
-
-Replace `kdu.maps.build_fake_frame` with your data. The only requirement is one row per
-geometry plus a join key that matches a GeoJSON property — the clean key is the AGS in
-`gem_code`. Joining on names alone is lossy (duplicate "Neustadt"/"Münster", suffix and
-umlaut variants).
+- **[KdU-Richtlinien und Mietobergrenzen](https://harald-thome.de/informationen/bundesweite-dienstanweisungen-kdu.html)**
+  — Harald Thomé's nationwide collection of Jobcenter and Sozialamt directives on
+  angemessene Unterkunftskosten supplies the KdU documents cited by the CSV.
+- **[Mietenstufen der Gemeinden](https://www.gesetze-im-internet.de/wogv/anlage.html)**
+  — The annex to § 1 Absatz 3 Wohngeldverordnung, „Mietstufen der Gemeinden nach Ländern
+  ab 1. Januar 2023“ (BGBl. I 2022, 2166–2210), is the statutory source for the
+  Mietstufen columns.
+- **[Inseln ohne Festlandanschluss](https://www.gesetze-im-internet.de/wogg/__12.html)**
+  — § 12 Absatz 4a WoGG defines the Mietstufe rule for the listed island Gemeinden.
+- **[Wohngeld-Höchstbeträge](https://www.gesetze-im-internet.de/wogg/anlage_1.html)** —
+  Anlage 1 zu § 12 Absatz 1 WoGG defines the monthly rent ceilings by household size and
+  Mietstufe.
+- **[Gemeindegrenzen](https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-germany-gemeinde/exports/geojson?limit=-1)**
+  — The OpenDataSoft `georef-germany-gemeinde` export supplies the boundaries, AGS, and
+  Gemeinde, Kreis, and Bundesland names.

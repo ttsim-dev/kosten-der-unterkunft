@@ -3,38 +3,48 @@
 # AGENTS.md
 
 This file provides guidance to AI coding tools (Claude Code, Gemini CLI, Codex, Copilot,
-Cursor) when working with code in this repository.
+Cursor) when working with this repository.
 
 ## Overview
 
-kdu is a prototype that draws choropleth maps of Germany at **Gemeinde** level (~11k
-municipalities) using Plotly. It currently fills the map with placeholder data; the
-intended next step is to join real data on the official AGS (`gem_code`) rather than on
-municipality names, which are not unique.
+`kdu` builds an interactive Plotly choropleth of Germany at Gemeinde level. It joins
+10,980 geometries to the 35-column `data/kdu_gemeinden.csv` table by AGS and provides a
+dropdown over 15 KdU, Mietstufe, and Wohngeld measures. The pytask graph contains one
+task, which writes `bld/germany_map.html`.
 
-## Build & Test
+## Build and test
 
 ```bash
 pixi install                       # create the environment
-pixi run prepare-gemeinden         # download + simplify boundaries → data/gemeinden.geo.json
-pixi run tests                     # pytest
+pixi run pytask                    # build bld/germany_map.html
+pixi run pytest                    # run tests
 pixi run ty                        # type checking
 pixi run prek run --all-files      # pre-commit hooks
 ```
 
-Open `notebooks/germany_map.ipynb` (via `pixi run jupyter lab`) to view the figure.
+Run `pixi run prepare-gemeinden` only to regenerate the committed boundaries and AGS
+lookup from OpenDataSoft.
 
 ## Architecture
 
+- `data/kdu_gemeinden.csv` — the single map table, keyed by eight-digit Gemeinde AGS.
+  See `data/kdu_codebook.md` for all 35 column definitions.
+- `data/gemeinden.geo.json` — simplified Gemeinde-level boundaries.
+- `data/gemeinde_lookup.arrow` — 12-digit AGS to Gemeinde, Gemeinde type, Kreis, and
+  Bundesland metadata.
+- `src/kdu/config.py` — project paths and the four-entry pytask data catalog.
 - `src/kdu/geodata.py` — load boundary GeoJSON, stamp a unique `fid` per feature, and
-  simplify geometry by snapping coordinates to a coarse grid (pure functions).
-- `src/kdu/maps.py` — build placeholder data and the Plotly `choropleth_map` figure.
-- `src/kdu/lookup.py` — build/load the AGS → (Gemeinde, Kreis, Bundesland) table.
-- `src/kdu/config.py` — project path constants (`SRC`, `ROOT`, `BLD`, `DATA`).
-- `scripts/prepare_gemeinden.py` — one-off: fetch the ~58 MB OpenDataSoft export into
-  `bld/` and write the committed `data/gemeinden.geo.json` and
-  `data/gemeinde_lookup.arrow`.
-- `notebooks/germany_map.ipynb` — loads the slim boundaries and renders the map.
+  simplify geometry by snapping coordinates to a coarse grid.
+- `src/kdu/lookup.py` — build and load the AGS lookup table.
+- `src/kdu/measures.py` — define the 15 selectable measures and their display metadata
+  and colour ranges.
+- `src/kdu/maps.py` — join the CSV and lookup to the boundaries and build the Plotly
+  choropleth with its measure dropdown.
+- `src/kdu/final/task_map.py` — the single pytask task; read the three map inputs and
+  write `bld/germany_map.html`.
+- `scripts/prepare_gemeinden.py` — fetch the OpenDataSoft export and write the committed
+  GeoJSON and lookup files.
 
-The join key is `fid` (a synthetic per-feature index), never the name. Region names
-repeat across Germany; the clean real-data key is the AGS carried in `gem_code`.
+The map join key is the official AGS derived from `gem_code`; region names are never
+used as keys because they repeat across Germany. The synthetic `fid` connects the joined
+frame to Plotly's GeoJSON features.
