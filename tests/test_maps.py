@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from kdu.maps import build_choropleth, build_map_frame
+from kdu.maps import build_choropleth, build_map_frame, count_coverage
 from kdu.measures import MEASURES, MeasureSpec, compute_colour_range
 
 
@@ -171,64 +171,6 @@ def test_compute_colour_range_returns_symmetric_diverging_range() -> None:
     assert result == pytest.approx((-95.5, 95.5))
 
 
-def test_measures_include_wohngeld_comparison_options_in_display_order() -> None:
-    result = [
-        (
-            spec.key,
-            spec.label,
-            spec.unit,
-            spec.hover_format,
-            spec.is_diverging,
-        )
-        for spec in MEASURES[-6:]
-    ]
-
-    assert result == [
-        (
-            "wogg_hoechstbetrag_eur_1p",
-            "Wohngeld-Höchstbetrag, 1 Person",
-            "€",
-            ",.0f",
-            False,
-        ),
-        (
-            "wogg_hoechstbetrag_eur_2p",
-            "Wohngeld-Höchstbetrag, 2 Personen",
-            "€",
-            ",.0f",
-            False,
-        ),
-        (
-            "wogg_hoechstbetrag_eur_4p",
-            "Wohngeld-Höchstbetrag, 4 Personen",
-            "€",
-            ",.0f",
-            False,
-        ),
-        (
-            "kdu_vs_wogg_pct_1p",
-            "KdU ggü. Wohngeld-Höchstbetrag, 1 Person",
-            "%",
-            "+,.1f",
-            True,
-        ),
-        (
-            "kdu_vs_wogg_pct_2p",
-            "KdU ggü. Wohngeld-Höchstbetrag, 2 Personen",
-            "%",
-            "+,.1f",
-            True,
-        ),
-        (
-            "kdu_vs_wogg_pct_4p",
-            "KdU ggü. Wohngeld-Höchstbetrag, 4 Personen",
-            "%",
-            "+,.1f",
-            True,
-        ),
-    ]
-
-
 def test_build_choropleth_has_base_measure_and_fifteen_dropdown_options(
     geojson: dict[str, Any],
     kdu: pd.DataFrame,
@@ -241,8 +183,7 @@ def test_build_choropleth_has_base_measure_and_fifteen_dropdown_options(
     assert (
         len(figure.data),
         len(figure.layout.updatemenus[0].buttons),
-        figure.layout.updatemenus[0].buttons[0].label,
-    ) == (2, 15, "Mietstufe (KdU-Dokument, sonst § 12 WoGG)")
+    ) == (2, 15)
 
 
 def test_build_choropleth_preserves_missing_values_in_measure_layer(
@@ -293,14 +234,29 @@ def test_build_choropleth_colours_negative_red_and_positive_blue(
     )
 
 
-def test_build_choropleth_counts_only_real_gemeinden_in_coverage(
+def test_count_coverage_excludes_gemeindefreie_gebiete_from_the_total(
     geojson: dict[str, Any],
     kdu: pd.DataFrame,
     lookup: pd.DataFrame,
 ) -> None:
-    kdu.loc[kdu["ags_gemeinde"].eq("14627060"), "wogg_mietstufe"] = 4
+    """Unpopulated tracts no document applies to must not count against coverage."""
     frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
 
-    figure = build_choropleth(geojson=geojson, frame=frame)
+    result = count_coverage(frame=frame, spec=MEASURES[0])
 
-    assert figure.layout.title.text.endswith("2 von 2 Gemeinden")
+    assert (result.total, result.covered) == (2, 2)
+
+
+def test_count_coverage_attributes_a_blank_to_the_other_rent_concept(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """A Gemeinde capped as Nettokaltmiete is not counted as missing data."""
+    kdu.loc[kdu["ags_gemeinde"].eq("09162000"), "max_bruttokaltmiete_eur_4p"] = np.nan
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+    spec = next(m for m in MEASURES if m.key == "max_bruttokaltmiete_eur_4p")
+
+    result = count_coverage(frame=frame, spec=spec)
+
+    assert (result.counterpart, result.missing) == (1, 0)

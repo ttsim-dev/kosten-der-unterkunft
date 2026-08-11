@@ -23,131 +23,234 @@ class MeasureSpec:
     """Whether the measure is the ordinal Mietstufe scale."""
     is_diverging: bool = False
     """Mark a measure whose natural midpoint is zero."""
+    headline: str = ""
+    """Figure title naming what the colour actually shows. Falls back to `label`."""
+    context: str = ""
+    """Second title line: legal basis, unit, and how to read the scale."""
+    counterpart_column: str = ""
+    """Column proving a blank Gemeinde is regulated under the other rent concept."""
+    counterpart_text: str = ""
+    """How to describe those Gemeinden in the coverage breakdown."""
+    colourbar_title: str = ""
+    """Colour bar caption. Falls back to `unit`, then to `Mietstufe`."""
 
+
+_SGB_BASIS = "Kosten der Unterkunft nach § 22 SGB II / § 35 SGB XII"
+
+_CONTEXT_MIETSTUFE = "Stufe 1-7 · Grundlage der Wohngeld-Höchstbeträge nach § 12 WoGG"
+
+_CONTEXT_BRUTTO = f"{_SGB_BASIS} · €/Monat, mit kalten Nebenkosten, ohne Heizkosten"
+
+_CONTEXT_BRUTTO_SQM = (
+    f"{_SGB_BASIS} · € je m² und Monat, mit kalten Nebenkosten, ohne Heizkosten"
+)
+
+_CONTEXT_NETTO = f"{_SGB_BASIS} · €/Monat, ohne Nebenkosten und ohne Heizkosten"
+
+_CONTEXT_FLAECHE = f"{_SGB_BASIS} · m²"
+
+_CONTEXT_WOGG = (
+    "§ 12 Abs. 1 WoGG, Anlage 1 (Fassung 1. Januar 2025) · €/Monat, Bruttokaltmiete"
+)
+
+_CONTEXT_VERGLEICH = (
+    "In % des Wohngeld-Höchstbetrags nach § 12 WoGG · 0 % = Obergrenze entspricht dem "
+    "Höchstbetrag, positiv = es wird mehr anerkannt"
+)
 
 MEASURES: tuple[MeasureSpec, ...] = (
     MeasureSpec(
         key="wogg_mietstufe",
         column="wogg_mietstufe",
-        label="Mietstufe (KdU-Dokument, sonst § 12 WoGG)",
+        label="Mietstufe · Stufe 1-7",
         unit="",
         hover_format="d",
         is_ordinal=True,
+        headline="Mietstufe der Gemeinde",
+        context=_CONTEXT_MIETSTUFE,
+        colourbar_title="Mietstufe",
     ),
     MeasureSpec(
         key="max_bruttokaltmiete_eur_1p",
         column="max_bruttokaltmiete_eur_1p",
-        label="Bruttokaltmiete, 1 Person",
+        label="Obergrenze · Bruttokaltmiete (mit kalten Nebenkosten), 1 Person",
         unit="€",
         hover_format=",.0f",
         is_ordinal=False,
+        headline="Höchstens anerkannte Bruttokaltmiete, 1-Personen-Haushalt",
+        context=_CONTEXT_BRUTTO,
+        counterpart_column="max_nettokaltmiete_eur_1p",
+        counterpart_text="als Nettokaltmiete geregelt",
+        colourbar_title="€/Monat",
     ),
     MeasureSpec(
         key="max_bruttokaltmiete_eur_2p",
         column="max_bruttokaltmiete_eur_2p",
-        label="Bruttokaltmiete, 2 Personen",
+        label="Obergrenze · Bruttokaltmiete (mit kalten Nebenkosten), 2 Personen",
         unit="€",
         hover_format=",.0f",
         is_ordinal=False,
+        headline="Höchstens anerkannte Bruttokaltmiete, 2-Personen-Haushalt",
+        context=_CONTEXT_BRUTTO,
+        counterpart_column="max_nettokaltmiete_eur_1p",
+        counterpart_text="als Nettokaltmiete geregelt",
+        colourbar_title="€/Monat",
     ),
     MeasureSpec(
         key="max_bruttokaltmiete_eur_4p",
         column="max_bruttokaltmiete_eur_4p",
-        label="Bruttokaltmiete, 4 Personen",
+        label="Obergrenze · Bruttokaltmiete (mit kalten Nebenkosten), 4 Personen",
         unit="€",
         hover_format=",.0f",
         is_ordinal=False,
+        headline="Höchstens anerkannte Bruttokaltmiete, 4-Personen-Haushalt",
+        context=_CONTEXT_BRUTTO,
+        counterpart_column="max_nettokaltmiete_eur_1p",
+        counterpart_text="als Nettokaltmiete geregelt",
+        colourbar_title="€/Monat",
     ),
     MeasureSpec(
         key="max_bruttokaltmiete_eur_sqm",
         column="max_bruttokaltmiete_eur_sqm",
-        label="Bruttokaltmiete je m²",
+        label="Obergrenze · Bruttokaltmiete je m²",
         unit="€/m²",
         hover_format=",.2f",
         is_ordinal=False,
+        headline="Höchstens anerkannte Bruttokaltmiete je m²",
+        context=_CONTEXT_BRUTTO_SQM,
+        colourbar_title="€/m² und Monat",
     ),
     MeasureSpec(
         key="max_nettokaltmiete_eur_1p",
         column="max_nettokaltmiete_eur_1p",
-        label="Nettokaltmiete, 1 Person",
+        label="Obergrenze · Nettokaltmiete (ohne Nebenkosten), 1 Person",
         unit="€",
         hover_format=",.0f",
         is_ordinal=False,
+        headline="Höchstens anerkannte Nettokaltmiete, 1-Personen-Haushalt",
+        context=_CONTEXT_NETTO,
+        counterpart_column="max_bruttokaltmiete_eur_1p",
+        counterpart_text="als Bruttokaltmiete geregelt",
+        colourbar_title="€/Monat",
     ),
     MeasureSpec(
         key="max_nettokaltmiete_eur_4p",
         column="max_nettokaltmiete_eur_4p",
-        label="Nettokaltmiete, 4 Personen",
+        label="Obergrenze · Nettokaltmiete (ohne Nebenkosten), 4 Personen",
         unit="€",
         hover_format=",.0f",
         is_ordinal=False,
+        headline="Höchstens anerkannte Nettokaltmiete, 4-Personen-Haushalt",
+        context=_CONTEXT_NETTO,
+        counterpart_column="max_bruttokaltmiete_eur_1p",
+        counterpart_text="als Bruttokaltmiete geregelt",
+        colourbar_title="€/Monat",
     ),
     MeasureSpec(
         key="max_wohnflaeche_sqm_1p",
         column="max_wohnflaeche_sqm_1p",
-        label="Angemessene Wohnfläche, 1 Person",
+        label="Wohnfläche · angemessen, 1 Person",
         unit="m²",
         hover_format=",.0f",
         is_ordinal=False,
+        headline="Angemessene Wohnfläche, 1-Personen-Haushalt",
+        context=_CONTEXT_FLAECHE,
+        colourbar_title="m²",
     ),
     MeasureSpec(
         key="max_wohnflaeche_sqm_4p",
         column="max_wohnflaeche_sqm_4p",
-        label="Angemessene Wohnfläche, 4 Personen",
+        label="Wohnfläche · angemessen, 4 Personen",
         unit="m²",
         hover_format=",.0f",
         is_ordinal=False,
+        headline="Angemessene Wohnfläche, 4-Personen-Haushalt",
+        context=_CONTEXT_FLAECHE,
+        colourbar_title="m²",
     ),
     MeasureSpec(
         key="wogg_hoechstbetrag_eur_1p",
         column="wogg_hoechstbetrag_eur_1p",
-        label="Wohngeld-Höchstbetrag, 1 Person",
+        label="Wohngeld · Höchstbetrag § 12 WoGG, 1 Person",
         unit="€",
         hover_format=",.0f",
         is_ordinal=False,
+        headline="Wohngeld-Höchstbetrag für Miete, 1-Personen-Haushalt",
+        context=_CONTEXT_WOGG,
+        colourbar_title="€/Monat",
     ),
     MeasureSpec(
         key="wogg_hoechstbetrag_eur_2p",
         column="wogg_hoechstbetrag_eur_2p",
-        label="Wohngeld-Höchstbetrag, 2 Personen",
+        label="Wohngeld · Höchstbetrag § 12 WoGG, 2 Personen",
         unit="€",
         hover_format=",.0f",
         is_ordinal=False,
+        headline="Wohngeld-Höchstbetrag für Miete, 2-Personen-Haushalt",
+        context=_CONTEXT_WOGG,
+        colourbar_title="€/Monat",
     ),
     MeasureSpec(
         key="wogg_hoechstbetrag_eur_4p",
         column="wogg_hoechstbetrag_eur_4p",
-        label="Wohngeld-Höchstbetrag, 4 Personen",
+        label="Wohngeld · Höchstbetrag § 12 WoGG, 4 Personen",
         unit="€",
         hover_format=",.0f",
         is_ordinal=False,
+        headline="Wohngeld-Höchstbetrag für Miete, 4-Personen-Haushalt",
+        context=_CONTEXT_WOGG,
+        colourbar_title="€/Monat",
     ),
     MeasureSpec(
         key="kdu_vs_wogg_pct_1p",
         column="kdu_vs_wogg_pct_1p",
-        label="KdU ggü. Wohngeld-Höchstbetrag, 1 Person",
+        label="Vergleich · Abweichung vom Wohngeld-Höchstbetrag in %, 1 Person",
         unit="%",
         hover_format="+,.1f",
         is_ordinal=False,
         is_diverging=True,
+        headline=(
+            "Abweichung der Mietobergrenze vom Wohngeld-Höchstbetrag, 1-Personen-"
+            "Haushalt"
+        ),
+        context=_CONTEXT_VERGLEICH,
+        counterpart_column="max_nettokaltmiete_eur_1p",
+        counterpart_text="als Nettokaltmiete geregelt",
+        colourbar_title="% vom Wohngeld-Höchstbetrag",
     ),
     MeasureSpec(
         key="kdu_vs_wogg_pct_2p",
         column="kdu_vs_wogg_pct_2p",
-        label="KdU ggü. Wohngeld-Höchstbetrag, 2 Personen",
+        label="Vergleich · Abweichung vom Wohngeld-Höchstbetrag in %, 2 Personen",
         unit="%",
         hover_format="+,.1f",
         is_ordinal=False,
         is_diverging=True,
+        headline=(
+            "Abweichung der Mietobergrenze vom Wohngeld-Höchstbetrag, 2-Personen-"
+            "Haushalt"
+        ),
+        context=_CONTEXT_VERGLEICH,
+        counterpart_column="max_nettokaltmiete_eur_1p",
+        counterpart_text="als Nettokaltmiete geregelt",
+        colourbar_title="% vom Wohngeld-Höchstbetrag",
     ),
     MeasureSpec(
         key="kdu_vs_wogg_pct_4p",
         column="kdu_vs_wogg_pct_4p",
-        label="KdU ggü. Wohngeld-Höchstbetrag, 4 Personen",
+        label="Vergleich · Abweichung vom Wohngeld-Höchstbetrag in %, 4 Personen",
         unit="%",
         hover_format="+,.1f",
         is_ordinal=False,
         is_diverging=True,
+        headline=(
+            "Abweichung der Mietobergrenze vom Wohngeld-Höchstbetrag, 4-Personen-"
+            "Haushalt"
+        ),
+        context=_CONTEXT_VERGLEICH,
+        counterpart_column="max_nettokaltmiete_eur_1p",
+        counterpart_text="als Nettokaltmiete geregelt",
+        colourbar_title="% vom Wohngeld-Höchstbetrag",
     ),
 )
 
