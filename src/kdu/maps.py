@@ -1,5 +1,6 @@
 """Build a measure-selectable Gemeinde choropleth from KdU data."""
 
+from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
@@ -262,25 +263,61 @@ def _build_title(
     return f"{headline}<br><sup>{' · '.join(parts)}</sup>"
 
 
-def _describe_coverage(*, frame: pd.DataFrame, spec: MeasureSpec) -> str:
-    """Split the Gemeinden into those with a value and the reasons the rest lack one."""
+@dataclass(frozen=True)
+class CoverageCounts:
+    """How many Gemeinden a measure covers, and why the rest are blank."""
+
+    total: int
+    """Gemeinden the measure could apply to, excluding gemeindefreie Gebiete."""
+    covered: int
+    """Gemeinden carrying a value."""
+    counterpart: int
+    """Blank Gemeinden that are capped under the other rent concept instead."""
+    missing: int
+    """Blank Gemeinden with no cap at all."""
+
+
+def count_coverage(*, frame: pd.DataFrame, spec: MeasureSpec) -> CoverageCounts:
+    """Count how many Gemeinden a measure covers.
+
+    Gemeindefreie Gebiete are excluded throughout: they are unpopulated tracts no
+    KdU document applies to, so counting them would understate coverage.
+
+    Args:
+        frame: Map frame returned by `build_map_frame`.
+        spec: Display specification for the measure.
+
+    Returns:
+        Counts that always satisfy `covered + counterpart + missing == total`.
+    """
     is_gemeinde = frame["gem_type"].ne("Gemeindefreies Gebiet")
     present = frame.loc[is_gemeinde, spec.column].notna()
-    denominator = int(is_gemeinde.sum())
+    total = int(is_gemeinde.sum())
     covered = int(present.sum())
-    pieces = [
-        f"{_format_count(covered)} von {_format_count(denominator)} Gemeinden mit Wert",
-    ]
-    remainder = denominator - covered
+    counterpart = 0
     if spec.counterpart_column and spec.counterpart_column in frame.columns:
         counterpart = int(
             (~present & frame.loc[is_gemeinde, spec.counterpart_column].notna()).sum(),
         )
-        if counterpart:
-            pieces.append(f"{_format_count(counterpart)} {spec.counterpart_text}")
-            remainder -= counterpart
-    if remainder:
-        pieces.append(f"{_format_count(remainder)} ohne Angabe")
+    return CoverageCounts(
+        total=total,
+        covered=covered,
+        counterpart=counterpart,
+        missing=total - covered - counterpart,
+    )
+
+
+def _describe_coverage(*, frame: pd.DataFrame, spec: MeasureSpec) -> str:
+    """Split the Gemeinden into those with a value and the reasons the rest lack one."""
+    counts = count_coverage(frame=frame, spec=spec)
+    pieces = [
+        f"{_format_count(counts.covered)} von "
+        f"{_format_count(counts.total)} Gemeinden mit Wert",
+    ]
+    if counts.counterpart:
+        pieces.append(f"{_format_count(counts.counterpart)} {spec.counterpart_text}")
+    if counts.missing:
+        pieces.append(f"{_format_count(counts.missing)} ohne Angabe")
     return ", ".join(pieces)
 
 
