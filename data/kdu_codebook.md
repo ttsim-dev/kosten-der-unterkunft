@@ -46,6 +46,11 @@ row carries the same figure in both families.
 | `max_bruttokaltmiete_eur_1p` … `_5p` | numeric | Maximum monthly Bruttokaltmiete in €, households of 1–5 persons |
 | `max_bruttokaltmiete_eur_addl` | numeric | Increase of the Bruttokaltmiete cap per further person beyond 5 |
 | `max_bruttokaltmiete_eur_sqm` | numeric | Maximum Bruttokaltmiete per m² in € |
+| `max_kalte_bk_eur_1p` … `_5p` | numeric | Cap the document sets on the **kalten Betriebskosten** alone, €/month, households of 1–5 |
+| `max_kalte_bk_eur_addl` | numeric | Increase of that cold-cost cap per further person |
+| `max_kalte_bk_eur_sqm` | numeric | Cold-cost cap expressed per m², where the document caps it that way instead |
+| `max_bruttokaltmiete_abgeleitet_eur_1p` … `_addl` | numeric | Nettokaltmiete **plus** the printed cold-cost cap. Derived, not printed — see below |
+| `kdu_vs_wogg_basis` | text | Whether `kdu_vs_wogg_pct_*` rests on a `gedruckt`en or an `abgeleitet`en Bruttokaltmiete |
 | `wogg_mietstufe` | numeric (1–7) | Mietstufe under § 12 Wohngeldgesetz. Complete for every Gemeinde: where a KdU document names one it is used, otherwise the statutory value from the Anlage zur Wohngeldverordnung (ab 1.1.2023). Empty only for the 172 gemeindefreie Gebiete no document covers — see below |
 | `notes` | text | Caveats: the Vergleichsraum / Mietstufe the Gemeinde was assigned to, corrections, `"nicht im Dokument"`, `"kein KdU-Dokument vorhanden"` |
 | `wogv_mietstufe` | numeric (1–7) | The statutory Mietstufe alone, straight from the Anlage zur Wohngeldverordnung. Unlike `wogg_mietstufe` it never defers to a KdU document, so the two differ for 54 Gemeinden. Empty for gemeindefreie Gebiete |
@@ -130,6 +135,26 @@ website but could not be saved; the field still names it. Document-to-Kreis assi
 `kdu_region_to_kreis.csv`. Converted text and searchable OCR versions are in
 `kdu_pdfs/converted_text/` and `kdu_pdfs/ocr_searchable/`.
 
+## The one derived quantity in the table
+
+Every other column holds what a document prints. `max_bruttokaltmiete_abgeleitet_*` is the
+exception: it adds `max_nettokaltmiete_*` and `max_kalte_bk_*`, because Bruttokaltmiete is by
+definition bare rent plus kalte Betriebskosten. It is filled only where a Kreis caps the two
+separately and prints both, and never where a Bruttokaltmiete is printed outright — so
+`max_bruttokaltmiete_*` keeps meaning "printed" and the two never blur.
+
+478 Gemeinden across the Kreise that regulate the Nettokaltmiete gain a figure this way; the
+cold-cost caps run from 11 % to 35 % of the corresponding Nettokaltmiete. A further 139
+Gemeinden cap cold costs per m² only, and are left empty rather than multiplied by the
+Wohnfläche.
+
+Read the derived figure with one caveat. Two separate caps is not the same rule as one
+combined ceiling: where rent and cold costs are capped individually, a tenant may not exceed
+the rent cap even with unusually cheap operating costs. Some Kreise say explicitly that the
+angemessene Bruttokaltmiete is the sum — Recklinghausen is one — and there the derivation is
+the operative limit. Elsewhere it is the right basis for comparison but not automatically the
+rule the Jobcenter applies. The per-Kreis `notes` record which case applies.
+
 ## Comparing the KdU caps to Wohngeld
 
 § 12 Absatz 1 WoGG caps the rent a Wohngeld calculation may take into account, by
@@ -146,5 +171,8 @@ a different rent concept.
 The Höchstbetrag is computed from `wogv_mietstufe`, the purely statutory value, because a
 Wohngeldstelle applies the statutory Mietstufe regardless of what a KdU document states.
 
-Across the 8,845 Gemeinden that have both figures, the KdU cap for a four-person household
-sits a median of 10.0 % above the Wohngeld ceiling, and below it for 1,455 Gemeinden (16 %).
+Across the 9,323 Gemeinden that have both figures, the KdU cap for a four-person household
+sits a median of 10.1 % above the Wohngeld ceiling, and below it for 1,455 Gemeinden (13 %).
+`kdu_vs_wogg_basis` says whether a row's comparison rests on a printed Bruttokaltmiete
+(8,964 Gemeinden) or a derived one (478); filter on it to restrict the comparison to printed
+figures alone.
