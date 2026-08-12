@@ -54,6 +54,7 @@ row carries the same figure in both families.
 | `wogv_mietstufe` | numeric (1–7) | The statutory Mietstufe alone, straight from the Anlage zur Wohngeldverordnung. Unlike `wogg_mietstufe` it never defers to a KdU document, so the two differ for 54 Gemeinden. Empty for gemeindefreie Gebiete |
 | `wogg_hoechstbetrag_eur_1p`, `_2p`, `_4p` | numeric | Höchstbetrag für Miete nach § 12 Abs. 1 WoGG in €/Monat for 1, 2 and 4 persons, looked up from `wogv_mietstufe` in Anlage 1 WoGG (in force 1.1.2025) |
 | `kdu_vs_wogg_pct_1p`, `_2p`, `_4p` | numeric | The KdU Bruttokaltmiete cap relative to that Höchstbetrag, in percent. Positive means the Jobcenter recognises more than the Wohngeld ceiling. Empty where either input is empty |
+| `haertefall_regelung` | 1 or empty | `1` where the source document itself prints a quantified Härtefall uplift as an alternative to the Richtwert. Empty everywhere else — which does **not** mean the cap is hard there, see below. These Gemeinden are hatched on the map |
 
 Decimal separator is `.`; there are no thousands separators, currency symbols or unit suffixes.
 
@@ -75,6 +76,55 @@ Blank was preferred over a plausible-looking inferred number throughout.
 - Documents that publish a table per Vergleichsraum without naming member Gemeinden used to force
   whole Kreise to stay empty. The August 2026 audit resolved these from the authorities' own
   Vergleichsraum annexes, including Rendsburg-Eckernförde, Erzgebirgskreis and Cottbus.
+
+## The Härtefall flag marks printed uplifts, not the absence of hardship relief
+
+`haertefall_regelung` answers one narrow question: **does the Kreis's own document print a
+second, higher set of amounts for hardship cases?** Only Berlin does.
+
+Nummer 3.4.2 AV-Wohnen sets the konkrete Angemessenheit at the Richtwert nach Nummer 3.3
+`zuzüglich eines Zuschlags von bis zu 10 Prozent`, and caps it at 10 % however many hardship
+grounds apply at once. The Vorschrift enumerates them: Alleinerziehende, at least ten years'
+Wohndauer, substantial soziale Bezüge, age over 60, foreseeable income, own illness or
+disability, Modernisierungszuschläge, and the move out of institutional care. Nummer 6.4.1 adds
+an Umzugsvermeidungszuschlag of 15 % of the same Richtwert, but only inside the
+Wirtschaftlichkeitsvergleich that decides whether a move is worth demanding. For a
+1-Personen-Haushalt the 449,00 € recorded here becomes up to 493,90 € under the Härtefall rule.
+
+Both percentages attach to the **general** Richtwert, not to the higher Sozialer-Wohnungsbau
+value. Berlin's published tables often print the surcharge columns computed on the social-housing
+row, which makes the uplift look conditional on social housing; the Vorschrift is not. The
+recorded value is always the plain Richtwert, so Berlin stays comparable to every other Kreis.
+
+An empty cell is not a claim that the recorded cap is absolute. The escape route from a KdU
+Richtwert is federal law, not local policy: § 22 Abs. 1 Satz 1 SGB II obliges the Jobcenter to
+pay the actual rent while a Kostensenkung is unzumutbar, and BSG case law requires a
+konkrete Angemessenheitsprüfung in the individual case. That applies in all 400 Kreise whether
+or not their document repeats it. A survey of all 532 machine-readable documents in `kdu_pdfs/`
+found:
+
+- 134 of the 148 documents long enough to be procedural Richtlinien spell the escape route out,
+  using `konkrete Angemessenheit`, `besondere Härte`, `unzumutbar`, `Einzelfall` or `Karenzzeit`.
+- The 14 that do not are schlüssige Konzepte and Wohnungsberichte — methodology reports that
+  derive the amounts without setting out the administrative procedure — plus one document whose
+  text extraction failed.
+- The remaining 384 documents are rent tables and Merkblätter of a few hundred words. Silence
+  there reflects the document's length, not the Kreis's practice.
+
+So rents above the recorded cap are payable in principle everywhere. What the flag records is
+that Berlin publishes the amount, which makes it verifiable. One near-miss is worth naming:
+Kempten Stadt printed `Härtefall 10 %` and `Härtefall 20 %` columns in its 01.04.2023 schedule,
+but the 01.04.2025 Beschluss recorded here dropped them, so Kempten is not flagged.
+
+How often the Berlin uplift is actually granted is not published in any source consulted.
+
+A second, unrelated 10 % is easy to confuse with this one. Where a Kreis has no schlüssiges
+Konzept, the BSG lets the § 12 WoGG table stand in **plus a 10 % Sicherheitszuschlag**, because
+the statutory table is an abstract cap that does not claim to track the local market
+(BSG 22.03.2012, B 4 AS 16/11 R, on § 8 WoGG; extended to § 12 WoGG by BSG 12.12.2013,
+B 4 AS 87/12 R). That surcharge is already inside the Richtwerte of the 35 Kreise whose `notes`
+mention it, it applies to every household rather than to hardship cases, and it is not what
+`haertefall_regelung` marks.
 
 ## The Mietstufe column is completed from the statute
 
