@@ -47,6 +47,7 @@ def kdu() -> pd.DataFrame:
     return pd.DataFrame(
         {
             "ags_gemeinde": ["01001000", "09162000", "14627060"],
+            "haertefall_regelung": [np.nan, 1, np.nan],
             "wogg_mietstufe": [3, 7, np.nan],
             "max_bruttokaltmiete_eur_1p": [540, 849, 410],
             "max_bruttokaltmiete_eur_2p": [661, 1092, 500],
@@ -90,6 +91,7 @@ def test_build_map_frame_returns_features_and_measures_in_map_order(
             "name": ["Flensburg", "München", "Großenhain"],
             "kreis": ["Flensburg", "München", "Landkreis Meißen"],
             "gem_type": ["Stadt", "Stadt", "Gemeindefreies Gebiet"],
+            "haertefall_regelung": [False, True, False],
             "wogg_mietstufe": [3.0, 7.0, np.nan],
             "max_bruttokaltmiete_eur_1p": [540.0, 849.0, 410.0],
             "max_bruttokaltmiete_eur_2p": [661.0, 1092.0, 500.0],
@@ -260,3 +262,199 @@ def test_count_coverage_attributes_a_blank_to_the_other_rent_concept(
     result = count_coverage(frame=frame, spec=spec)
 
     assert (result.counterpart, result.missing) == (1, 0)
+
+
+def test_build_map_frame_marks_gemeinden_with_an_explicit_haertefall_rule(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """Only the Gemeinde whose document prints a Härtefall uplift is marked."""
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+
+    assert frame["haertefall_regelung"].tolist() == [False, True, False]
+
+
+def test_build_choropleth_hatches_only_the_flagged_gemeinde(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """Hatch lines fall inside München's feature and nowhere else."""
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+
+    figure = build_choropleth(
+        geojson=geojson,
+        frame=frame,
+        initial_measure="max_bruttokaltmiete_eur_1p",
+    )
+    drawn = [
+        longitude
+        for layer in figure.layout.map.layers
+        for feature in layer["source"]["features"]
+        for longitude, _ in feature["geometry"]["coordinates"]
+    ]
+
+    assert (min(drawn), max(drawn)) == pytest.approx((10.0, 10.1), abs=0.05)
+
+
+def test_build_choropleth_hides_the_hatch_for_measures_no_topup_changes(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """The Mietstufe is not a KdU rent cap, so it carries no hatching."""
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+
+    figure = build_choropleth(
+        geojson=geojson,
+        frame=frame,
+        initial_measure="wogg_mietstufe",
+    )
+
+    assert figure.layout.map.layers == ()
+
+
+def test_measure_buttons_toggle_the_hatch_with_the_measure(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """Exactly the nine rent-cap measures switch the overlay on."""
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+
+    figure = build_choropleth(geojson=geojson, frame=frame)
+    hatched = [
+        bool(button["args"][1]["map.layers"])
+        for button in figure.layout.updatemenus[0].buttons
+    ]
+
+    assert hatched == [spec.reflects_kdu_cap for spec in MEASURES]
+
+
+def test_measure_buttons_carry_the_haertefall_note(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """The hatched measures explain the overlay and name the 10 % top-up."""
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+
+    figure = build_choropleth(geojson=geojson, frame=frame)
+    button = next(
+        button
+        for button, spec in zip(
+            figure.layout.updatemenus[0].buttons,
+            MEASURES,
+            strict=True,
+        )
+        if spec.reflects_kdu_cap
+    )
+
+    assert "10 %" in button["args"][1]["annotations"][0]["text"]
+
+
+def test_build_choropleth_omits_the_hatch_when_nothing_is_flagged(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """A map with no flagged Gemeinde shows no overlay on any measure."""
+    kdu["haertefall_regelung"] = np.nan
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+
+    figure = build_choropleth(
+        geojson=geojson,
+        frame=frame,
+        initial_measure="max_bruttokaltmiete_eur_1p",
+    )
+
+    assert figure.layout.map.layers == ()
+
+
+def test_hover_names_the_haertefall_topup_for_flagged_gemeinden(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """München's tooltip states the 10 % top-up; the others carry no such line."""
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+
+    figure = build_choropleth(
+        geojson=geojson,
+        frame=frame,
+        initial_measure="max_bruttokaltmiete_eur_1p",
+    )
+    notes = [row[3] for row in figure.data[1].customdata]
+
+    assert [bool(note) for note in notes] == [False, True, False]
+
+
+def test_hover_omits_the_haertefall_topup_where_it_cannot_apply(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """The Mietstufe tooltip stays silent, since no rent top-up changes it."""
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+
+    figure = build_choropleth(
+        geojson=geojson,
+        frame=frame,
+        initial_measure="wogg_mietstufe",
+    )
+
+    assert not any(row[3] for row in figure.data[1].customdata)
+
+
+def test_rent_cap_measures_cite_the_sicherheitszuschlag_ruling(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """A rent-cap figure names the BSG decision behind the 10 % Sicherheitszuschlag."""
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+
+    figure = build_choropleth(
+        geojson=geojson,
+        frame=frame,
+        initial_measure="max_bruttokaltmiete_eur_1p",
+    )
+
+    assert "B 4 AS 87/12 R" in figure.layout.annotations[0]["text"]
+
+
+def test_measures_no_rent_cap_carry_no_footnote(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """The Mietstufe is not a rent cap, so neither footnote applies to it."""
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+
+    figure = build_choropleth(
+        geojson=geojson,
+        frame=frame,
+        initial_measure="wogg_mietstufe",
+    )
+
+    assert figure.layout.annotations == ()
+
+
+def test_sicherheitszuschlag_note_stands_without_any_flagged_gemeinde(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """The ruling applies Kreis-wide, so it is footnoted even with no hatching."""
+    kdu["haertefall_regelung"] = np.nan
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+
+    figure = build_choropleth(
+        geojson=geojson,
+        frame=frame,
+        initial_measure="max_bruttokaltmiete_eur_1p",
+    )
+    text = figure.layout.annotations[0]["text"]
+
+    assert ("B 4 AS 87/12 R" in text, "Schraffur" in text) == (True, False)

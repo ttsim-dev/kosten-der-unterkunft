@@ -33,6 +33,12 @@ class MeasureSpec:
     """How to describe those Gemeinden in the coverage breakdown."""
     colourbar_title: str = ""
     """Colour bar caption. Falls back to `unit`, then to `Mietstufe`."""
+    reflects_kdu_cap: bool = False
+    """Whether the value is a KdU rent cap a Härtefallzuschlag would raise.
+
+    Drives the hatch overlay. False for the Mietstufe, the Wohngeld-Höchstbeträge
+    and the Wohnflächen, none of which a rent top-up changes.
+    """
 
 
 _SGB_BASIS = "Kosten der Unterkunft nach § 22 SGB II / § 35 SGB XII"
@@ -73,6 +79,7 @@ MEASURES: tuple[MeasureSpec, ...] = (
     MeasureSpec(
         key="max_bruttokaltmiete_eur_1p",
         column="max_bruttokaltmiete_eur_1p",
+        reflects_kdu_cap=True,
         label="Obergrenze · Bruttokaltmiete (mit kalten Nebenkosten), 1 Person",
         unit="€",
         hover_format=",.0f",
@@ -86,6 +93,7 @@ MEASURES: tuple[MeasureSpec, ...] = (
     MeasureSpec(
         key="max_bruttokaltmiete_eur_2p",
         column="max_bruttokaltmiete_eur_2p",
+        reflects_kdu_cap=True,
         label="Obergrenze · Bruttokaltmiete (mit kalten Nebenkosten), 2 Personen",
         unit="€",
         hover_format=",.0f",
@@ -99,6 +107,7 @@ MEASURES: tuple[MeasureSpec, ...] = (
     MeasureSpec(
         key="max_bruttokaltmiete_eur_4p",
         column="max_bruttokaltmiete_eur_4p",
+        reflects_kdu_cap=True,
         label="Obergrenze · Bruttokaltmiete (mit kalten Nebenkosten), 4 Personen",
         unit="€",
         hover_format=",.0f",
@@ -112,6 +121,7 @@ MEASURES: tuple[MeasureSpec, ...] = (
     MeasureSpec(
         key="max_bruttokaltmiete_eur_sqm",
         column="max_bruttokaltmiete_eur_sqm",
+        reflects_kdu_cap=True,
         label="Obergrenze · Bruttokaltmiete je m²",
         unit="€/m²",
         hover_format=",.2f",
@@ -123,6 +133,7 @@ MEASURES: tuple[MeasureSpec, ...] = (
     MeasureSpec(
         key="max_nettokaltmiete_eur_1p",
         column="max_nettokaltmiete_eur_1p",
+        reflects_kdu_cap=True,
         label="Obergrenze · Nettokaltmiete (ohne Nebenkosten), 1 Person",
         unit="€",
         hover_format=",.0f",
@@ -136,6 +147,7 @@ MEASURES: tuple[MeasureSpec, ...] = (
     MeasureSpec(
         key="max_nettokaltmiete_eur_4p",
         column="max_nettokaltmiete_eur_4p",
+        reflects_kdu_cap=True,
         label="Obergrenze · Nettokaltmiete (ohne Nebenkosten), 4 Personen",
         unit="€",
         hover_format=",.0f",
@@ -204,6 +216,7 @@ MEASURES: tuple[MeasureSpec, ...] = (
     MeasureSpec(
         key="kdu_vs_wogg_pct_1p",
         column="kdu_vs_wogg_pct_1p",
+        reflects_kdu_cap=True,
         label="Vergleich · Abweichung vom Wohngeld-Höchstbetrag in %, 1 Person",
         unit="%",
         hover_format="+,.1f",
@@ -221,6 +234,7 @@ MEASURES: tuple[MeasureSpec, ...] = (
     MeasureSpec(
         key="kdu_vs_wogg_pct_2p",
         column="kdu_vs_wogg_pct_2p",
+        reflects_kdu_cap=True,
         label="Vergleich · Abweichung vom Wohngeld-Höchstbetrag in %, 2 Personen",
         unit="%",
         hover_format="+,.1f",
@@ -238,6 +252,7 @@ MEASURES: tuple[MeasureSpec, ...] = (
     MeasureSpec(
         key="kdu_vs_wogg_pct_4p",
         column="kdu_vs_wogg_pct_4p",
+        reflects_kdu_cap=True,
         label="Vergleich · Abweichung vom Wohngeld-Höchstbetrag in %, 4 Personen",
         unit="%",
         hover_format="+,.1f",

@@ -6,9 +6,17 @@ from typing import Any
 import pandas as pd
 import plotly.graph_objects as go
 
+from kdu.hatching import build_hatch_geojson
 from kdu.measures import MEASURES, MeasureSpec, compute_colour_range
 
 GERMANY_CENTER = {"lat": 51.2, "lon": 10.4}
+HAERTEFALL_COLUMN = "haertefall_regelung"
+HAERTEFALL_HOVER = "<br>Härtefallregelung: 10 % über dem Richtwert möglich"
+HAERTEFALL_NOTE = "Schraffur: eigene Härtefallregelung (Berlin: +10 %, nicht enthalten)"
+SICHERHEITSZUSCHLAG_NOTE = (
+    "Ohne schlüssiges Konzept: § 12 WoGG + 10 % Sicherheitszuschlag "
+    "(BSG B 4 AS 87/12 R)"
+)
 AGS_LENGTH = 8
 SOURCE_AGS_LENGTH = 12
 
@@ -48,6 +56,7 @@ def build_map_frame(
     kdu_measures["ags"] = kdu["ags_gemeinde"].map(_normalise_ags_8)
     for column in measure_columns:
         kdu_measures[column] = pd.to_numeric(kdu[column], errors="coerce").astype(float)
+    kdu_measures[HAERTEFALL_COLUMN] = _mark_haertefall(kdu)
 
     joined = features.merge(
         kdu_measures,
@@ -70,7 +79,15 @@ def build_map_frame(
         sort=False,
         validate="one_to_one",
     )
-    columns = ["fid", "ags", "name", "kreis", "gem_type", *measure_columns]
+    columns = [
+        "fid",
+        "ags",
+        "name",
+        "kreis",
+        "gem_type",
+        HAERTEFALL_COLUMN,
+        *measure_columns,
+    ]
     return joined.loc[:, columns].reset_index(drop=True)
 
 
@@ -109,16 +126,101 @@ def build_choropleth(
         ],
     )
     buttons = [
-        _build_measure_button(frame=frame, spec=spec, vintage=vintage)
+        _build_measure_button(
+            geojson=geojson,
+            frame=frame,
+            spec=spec,
+            vintage=vintage,
+        )
         for spec in MEASURES
     ]
+    initial_layers = _build_hatch_layers(
+        geojson=geojson,
+        frame=frame,
+        spec=initial_spec,
+    )
     figure.update_layout(
         title={"text": _build_title(frame=frame, spec=initial_spec, vintage=vintage)},
-        map={"style": "carto-positron", "center": GERMANY_CENTER, "zoom": 4.7},
+        map={
+            "style": "carto-positron",
+            "center": GERMANY_CENTER,
+            "zoom": 4.7,
+            "layers": initial_layers,
+        },
+        annotations=_build_footnotes(layers=initial_layers, spec=initial_spec),
         margin={"r": 0, "t": 40, "l": 0, "b": 0},
         updatemenus=[{"buttons": buttons}],
     )
     return figure
+
+
+def _build_hatch_layers(
+    *,
+    geojson: dict[str, Any],
+    frame: pd.DataFrame,
+    spec: MeasureSpec,
+) -> list[dict[str, Any]]:
+    """Return the map layers hatching Gemeinden with an explicit Härtefall rule.
+
+    Hatching rather than a fill colour, because the marked Gemeinden must keep
+    showing the selected measure underneath. Empty for measures no rent top-up
+    would change, and empty when no Gemeinde is flagged.
+    """
+    if not spec.reflects_kdu_cap:
+        return []
+    flagged = frame.loc[frame[HAERTEFALL_COLUMN], "fid"]
+    lines = build_hatch_geojson(geojson=geojson, fids=set(flagged.astype(int)))
+    if not lines["features"]:
+        return []
+    return [
+        {
+            "source": lines,
+            "type": "line",
+            "color": "#1a1a1a",
+            "line": {"width": 1},
+        },
+    ]
+
+
+def _build_footnotes(
+    *,
+    layers: list[dict[str, Any]],
+    spec: MeasureSpec,
+) -> list[dict[str, Any]]:
+    """Caption what the displayed caps already contain and what they leave out.
+
+    Two independent 10 % surcharges bear on a KdU rent cap, and neither is legible
+    from the number alone:
+
+    - The BSG's Sicherheitszuschlag on the Wohngeldtabelle, which is already inside
+      the Richtwerte of the Kreise that lack a schlüssiges Konzept.
+    - Berlin's Härtefallzuschlag, which is not included and marks the hatching.
+
+    Both are dropped for measures no rent surcharge would change, and the Härtefall
+    line is dropped when nothing is hatched.
+    """
+    lines = []
+    if layers:
+        lines.append(HAERTEFALL_NOTE)
+    if spec.reflects_kdu_cap:
+        lines.append(SICHERHEITSZUSCHLAG_NOTE)
+    if not lines:
+        return []
+    return [
+        {
+            "text": "<br>".join(lines),
+            "xref": "paper",
+            "yref": "paper",
+            "x": 0.01,
+            "y": 0.01,
+            "xanchor": "left",
+            "yanchor": "bottom",
+            "showarrow": False,
+            "align": "left",
+            "bgcolor": "rgba(255, 255, 255, 0.8)",
+            "font": {"size": 10},
+        },
+    ]
 
 
 def _derive_ags_8(value: object) -> str:
@@ -132,6 +234,14 @@ def _derive_ags_8(value: object) -> str:
 
 def _normalise_ags_8(value: object) -> str:
     return str(value).zfill(AGS_LENGTH)
+
+
+def _mark_haertefall(kdu: pd.DataFrame) -> pd.Series:
+    """Flag the Gemeinden whose document prints a quantified Härtefall uplift."""
+    if HAERTEFALL_COLUMN not in kdu.columns:
+        return pd.Series(data=False, index=kdu.index, dtype=bool)
+    flag = pd.to_numeric(kdu[HAERTEFALL_COLUMN], errors="coerce")
+    return flag.eq(1).fillna(value=False).astype(bool)
 
 
 def _fail_if_kdu_rows_are_missing(joined: pd.DataFrame) -> None:
@@ -192,6 +302,7 @@ def _build_measure_trace(
 
 def _build_measure_button(
     *,
+    geojson: dict[str, Any],
     frame: pd.DataFrame,
     spec: MeasureSpec,
     vintage: str = "",
@@ -206,24 +317,37 @@ def _build_measure_button(
         "colorscale": [_build_colorscale(spec)],
         "colorbar": [_build_colorbar(spec=spec, lower=lower, upper=upper)],
     }
+    layers = _build_hatch_layers(geojson=geojson, frame=frame, spec=spec)
     return {
         "label": spec.label,
         "method": "update",
         "args": [
             trace_update,
-            {"title.text": _build_title(frame=frame, spec=spec, vintage=vintage)},
+            {
+                "title.text": _build_title(frame=frame, spec=spec, vintage=vintage),
+                "map.layers": layers,
+                "annotations": _build_footnotes(layers=layers, spec=spec),
+            },
             [1],
         ],
     }
 
 
 def _build_customdata(*, frame: pd.DataFrame, spec: MeasureSpec) -> list[list[Any]]:
+    """Assemble the per-Gemeinde tooltip fields.
+
+    The fourth field is the Härtefall line, empty for every Gemeinde whose
+    document prints no top-up and for measures a top-up would not change. An
+    empty string renders as nothing, so one hovertemplate serves both cases.
+    """
+    notes = frame[HAERTEFALL_COLUMN] & spec.reflects_kdu_cap
     return [
-        [name, kreis, value]
-        for name, kreis, value in zip(
+        [name, kreis, value, HAERTEFALL_HOVER if note else ""]
+        for name, kreis, value, note in zip(
             frame["name"],
             frame["kreis"],
             frame[spec.column],
+            notes,
             strict=True,
         )
     ]
@@ -235,6 +359,7 @@ def _build_hovertemplate(spec: MeasureSpec) -> str:
         "<b>%{customdata[0]}</b><br>"
         "Kreis: %{customdata[1]}<br>"
         f"{_hover_label(spec)}: %{{customdata[2]:{spec.hover_format}}}{unit}"
+        "%{customdata[3]}"
         "<extra></extra>"
     )
 
