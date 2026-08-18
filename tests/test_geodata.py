@@ -50,3 +50,35 @@ def test_simplify_feature_collection_preserves_properties() -> None:
     result = simplify_feature_collection(geojson, decimals=2)
     # Assert.
     assert result["features"][0]["properties"]["gem_name"] == expected
+
+
+def test_round_ring_drops_points_on_a_straight_edge() -> None:
+    # Input: the midpoint of the bottom edge lies exactly on the line between corners.
+    ring = [
+        [10.0, 50.0],
+        [10.5, 50.0],
+        [11.0, 50.0],
+        [11.0, 51.0],
+        [10.0, 50.0],
+    ]
+    # Expected: the shape is unchanged, so the redundant vertex is gone.
+    expected = [[10.0, 50.0], [11.0, 50.0], [11.0, 51.0], [10.0, 50.0]]
+    # Result.
+    result = round_ring(ring, decimals=2)
+    # Assert.
+    assert result == expected
+
+
+def test_round_ring_keeps_a_ring_that_would_collapse_without_its_edge_points() -> None:
+    # Input: a staircase whose corners alone still bound an area.
+    ring = [[10.0, 50.0], [10.01, 50.0], [10.01, 50.01], [10.0, 50.01], [10.0, 50.0]]
+    # Expected / Result / Assert: the four corners survive.
+    assert round_ring(ring, decimals=2) == ring
+
+
+def test_round_ring_keeps_a_degenerate_ring_it_cannot_thin_further() -> None:
+    # Input: a sliver whose points all lie on one line.
+    ring = [[10.0, 50.0], [10.01, 50.0], [10.02, 50.0], [10.0, 50.0]]
+    # Expected / Result / Assert: dropping its edge points would erase the
+    # Gemeinde, so the ring survives as it is.
+    assert round_ring(ring, decimals=2) == ring

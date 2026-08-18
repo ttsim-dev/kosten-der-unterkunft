@@ -385,7 +385,7 @@ def test_hover_names_the_haertefall_topup_for_flagged_gemeinden(
         frame=frame,
         initial_measure="max_bruttokaltmiete_eur_1p",
     )
-    notes = [row[3] for row in figure.data[1].customdata]
+    notes = [row[2] for row in figure.data[1].customdata]
 
     assert [bool(note) for note in notes] == [False, True, False]
 
@@ -404,7 +404,23 @@ def test_hover_omits_the_haertefall_topup_where_it_cannot_apply(
         initial_measure="wogg_mietstufe",
     )
 
-    assert not any(row[3] for row in figure.data[1].customdata)
+    assert "customdata[2]" not in figure.data[1].hovertemplate
+
+
+def test_measure_buttons_leave_the_tooltip_fields_on_the_trace(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """Names and Kreise are identical for every measure, so no button resends them."""
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+
+    figure = build_choropleth(geojson=geojson, frame=frame)
+
+    assert not any(
+        "customdata" in button["args"][0]
+        for button in figure.layout.updatemenus[0].buttons
+    )
 
 
 def test_rent_cap_measures_cite_the_sicherheitszuschlag_ruling(
@@ -458,3 +474,18 @@ def test_sicherheitszuschlag_note_stands_without_any_flagged_gemeinde(
     text = figure.layout.annotations[0]["text"]
 
     assert ("B 4 AS 87/12 R" in text, "Schraffur" in text) == (True, False)
+
+
+def test_choropleth_boundaries_carry_only_the_join_key(
+    geojson: dict[str, Any],
+    kdu: pd.DataFrame,
+    lookup: pd.DataFrame,
+) -> None:
+    """Names and AGS are resolved while building, so the browser needs only `fid`."""
+    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+
+    figure = build_choropleth(geojson=geojson, frame=frame)
+
+    assert [
+        set(feature["properties"]) for feature in figure.data[1].geojson["features"]
+    ] == [{"fid"}] * 3

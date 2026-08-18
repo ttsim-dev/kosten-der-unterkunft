@@ -115,11 +115,12 @@ def build_choropleth(
             published values.
     """
     initial_spec = _get_measure(initial_measure)
+    boundaries = _keep_join_key_only(geojson)
     figure = go.Figure(
         data=[
-            _build_base_trace(geojson=geojson, frame=frame),
+            _build_base_trace(geojson=boundaries, frame=frame),
             _build_measure_trace(
-                geojson=geojson,
+                geojson=boundaries,
                 frame=frame,
                 spec=initial_spec,
             ),
@@ -152,6 +153,23 @@ def build_choropleth(
         updatemenus=[{"buttons": buttons}],
     )
     return figure
+
+
+def _keep_join_key_only(geojson: dict[str, Any]) -> dict[str, Any]:
+    """Drop the feature properties the browser never reads.
+
+    Names and AGS are resolved into the map frame while the figure is built,
+    so the embedded boundaries only have to carry the `fid` the traces join on.
+    """
+    features = [
+        {
+            "type": "Feature",
+            "geometry": feature["geometry"],
+            "properties": {"fid": feature["properties"]["fid"]},
+        }
+        for feature in geojson["features"]
+    ]
+    return {"type": "FeatureCollection", "features": features}
 
 
 def _build_hatch_layers(
@@ -290,7 +308,7 @@ def _build_measure_trace(
         locations=frame["fid"],
         featureidkey="properties.fid",
         z=frame[spec.column],
-        customdata=_build_customdata(frame=frame, spec=spec),
+        customdata=_build_customdata(frame=frame),
         hovertemplate=_build_hovertemplate(spec),
         zmin=lower,
         zmax=upper,
@@ -310,7 +328,6 @@ def _build_measure_button(
     lower, upper = compute_colour_range(values=frame[spec.column], spec=spec)
     trace_update = {
         "z": [frame[spec.column].tolist()],
-        "customdata": [_build_customdata(frame=frame, spec=spec)],
         "hovertemplate": [_build_hovertemplate(spec)],
         "zmin": [lower],
         "zmax": [upper],
@@ -333,21 +350,21 @@ def _build_measure_button(
     }
 
 
-def _build_customdata(*, frame: pd.DataFrame, spec: MeasureSpec) -> list[list[Any]]:
-    """Assemble the per-Gemeinde tooltip fields.
+def _build_customdata(*, frame: pd.DataFrame) -> list[list[Any]]:
+    """Assemble the tooltip fields that hold for every measure.
 
-    The fourth field is the Härtefall line, empty for every Gemeinde whose
-    document prints no top-up and for measures a top-up would not change. An
-    empty string renders as nothing, so one hovertemplate serves both cases.
+    Name, Kreis, and the Härtefall line depend only on the Gemeinde, so the
+    trace carries them once and the dropdown never resends them — which keeps
+    the written HTML from repeating all 11,000 names per measure. The third
+    field is empty for every Gemeinde whose document prints no top-up, and the
+    hovertemplate drops it entirely for measures a top-up would not change.
     """
-    notes = frame[HAERTEFALL_COLUMN] & spec.reflects_kdu_cap
     return [
-        [name, kreis, value, HAERTEFALL_HOVER if note else ""]
-        for name, kreis, value, note in zip(
+        [name, kreis, HAERTEFALL_HOVER if note else ""]
+        for name, kreis, note in zip(
             frame["name"],
             frame["kreis"],
-            frame[spec.column],
-            notes,
+            frame[HAERTEFALL_COLUMN],
             strict=True,
         )
     ]
@@ -355,11 +372,12 @@ def _build_customdata(*, frame: pd.DataFrame, spec: MeasureSpec) -> list[list[An
 
 def _build_hovertemplate(spec: MeasureSpec) -> str:
     unit = f" {spec.colourbar_title or spec.unit}" if spec.unit else ""
+    haertefall = "%{customdata[2]}" if spec.reflects_kdu_cap else ""
     return (
         "<b>%{customdata[0]}</b><br>"
         "Kreis: %{customdata[1]}<br>"
-        f"{_hover_label(spec)}: %{{customdata[2]:{spec.hover_format}}}{unit}"
-        "%{customdata[3]}"
+        f"{_hover_label(spec)}: %{{z:{spec.hover_format}}}{unit}"
+        f"{haertefall}"
         "<extra></extra>"
     )
 

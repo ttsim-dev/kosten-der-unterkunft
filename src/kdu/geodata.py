@@ -12,13 +12,21 @@ are not unique in Germany, so the choropleth join must key on ``fid``
 (or, for real data, on the AGS) rather than the name.
 """
 
+import itertools
 import json
+import math
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 Coordinate = tuple[float, float]
 Ring = list[list[float]]
+
+# Fewest points a closed ring can have: three corners plus the repeated first.
+MIN_CLOSED_RING_POINTS = 4
+
+# Cross product below which three coordinates count as one straight edge.
+COLLINEAR_TOLERANCE = 1e-12
 
 
 def load_geojson(path: Path) -> dict[str, Any]:
@@ -90,7 +98,13 @@ def round_ring(
     *,
     decimals: int,
 ) -> Ring | None:
-    """Round a ring's coordinates and drop consecutive duplicate points.
+    """Round a ring's coordinates and drop the points the shape does not need.
+
+    Two kinds of point go: consecutive duplicates, which the grid snap
+    creates wherever a run of vertices falls into one cell, and vertices
+    lying exactly on the straight line between their neighbours, which
+    the snap leaves behind along every axis-parallel edge. Neither
+    changes the outline, so shared borders stay aligned.
 
     Returns a closed ring (first point repeated last) with at least four
     points, or ``None`` if the ring collapses below that.
@@ -104,4 +118,31 @@ def round_ring(
         previous = rounded
     if cleaned and cleaned[0] != cleaned[-1]:
         cleaned.append(cleaned[0])
-    return cleaned if len(cleaned) >= 4 else None  # noqa: PLR2004
+    if len(cleaned) < MIN_CLOSED_RING_POINTS:
+        return None
+    return _drop_collinear_points(cleaned)
+
+
+def _drop_collinear_points(ring: Ring) -> Ring:
+    """Remove every vertex that sits on the line between its neighbours.
+
+    A ring that is one straight line throughout would lose its every point,
+    which would drop the Gemeinde from the map, so such a ring is left alone.
+    """
+    kept: Ring = [ring[0]]
+    for point, following in itertools.pairwise(ring[1:]):
+        if not _is_collinear(kept[-1], point, following):
+            kept.append(point)
+    kept.append(ring[-1])
+    return kept if len(kept) >= MIN_CLOSED_RING_POINTS else ring
+
+
+def _is_collinear(
+    first: Sequence[float],
+    second: Sequence[float],
+    third: Sequence[float],
+) -> bool:
+    cross = (second[0] - first[0]) * (third[1] - first[1]) - (second[1] - first[1]) * (
+        third[0] - first[0]
+    )
+    return math.isclose(cross, 0.0, abs_tol=COLLINEAR_TOLERANCE)

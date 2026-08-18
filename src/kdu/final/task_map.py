@@ -8,6 +8,7 @@ from pytask import Product
 
 from kdu.config import DATA_CATALOG
 from kdu.geodata import load_geojson
+from kdu.html import write_html_with_shared_geojson
 from kdu.maps import build_choropleth, build_map_frame
 
 _GEMEINDEN_GEOJSON = cast("Path", DATA_CATALOG["gemeinden_geojson"])
@@ -38,7 +39,7 @@ def task_map(
         vintage=_describe_vintage(kdu_gemeinden["valid_from"]),
     )
 
-    figure.write_html(germany_map_file)
+    write_html_with_shared_geojson(figure, germany_map_file)
 
 
 def _describe_vintage(valid_from: pd.Series) -> str:

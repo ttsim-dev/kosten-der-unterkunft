@@ -40,6 +40,8 @@ lookup from OpenDataSoft.
   Härtefall overlay can mark areas without hiding the measure colour beneath.
 - `src/kdu/measures.py` — define the 15 selectable measures and their display metadata
   and colour ranges.
+- `src/kdu/html.py` — write the figure to HTML with each feature collection embedded
+  once, so the two choropleth traces share one copy of the boundaries.
 - `src/kdu/maps.py` — join the CSV and lookup to the boundaries and build the Plotly
   choropleth with its measure dropdown and the Härtefall hatch layer.
 - `src/kdu/final/task_map.py` — the single pytask task; read the three map inputs and
