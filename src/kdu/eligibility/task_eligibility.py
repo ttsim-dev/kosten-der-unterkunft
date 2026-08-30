@@ -26,7 +26,9 @@ def task_eligibility(
     wohnkosten_extract_file: Path = WOHNKOSTEN_EXTRACT,
     gemeinde_file: Annotated[Path, Product] = catalog_path("exit_threshold_gemeinde"),
     table_file: Annotated[Path, Product] = catalog_path("exit_threshold_table"),
-    figure_file: Annotated[Path, Product] = catalog_path("exit_threshold_distribution"),
+    figure_file: Annotated[Path, Product] = catalog_path(
+        "exit_threshold_distribution",
+    ),
 ) -> None:
     """Simulate both scenarios and write the threshold frame, table and figure."""
     caps = pd.read_parquet(kdu_caps_file)

@@ -37,7 +37,7 @@ All amounts are euro per month.
 from dataclasses import dataclass
 from functools import cache
 from types import MappingProxyType
-from typing import Any, cast
+from typing import Any
 
 import dags.tree as dt
 import numpy as np
@@ -202,7 +202,7 @@ def distinct_cap_pairs(sample: pd.DataFrame, household_size: int) -> pd.DataFram
         of Gemeinden it covers.
 
     """
-    contrasted = sample.query("household_size == @household_size").dropna(
+    contrasted = sample.loc[sample["household_size"] == household_size].dropna(
         subset=["kdu_cap", "wohngeld_fallback_cap", "mietenstufe"],
     )
     grouped = (
@@ -253,8 +253,8 @@ def assign_cap_pairs(
         `cap_pair_id`.
 
     """
-    keys = sample.query("household_size == @household_size").loc[
-        :,
+    keys = sample.loc[
+        sample["household_size"] == household_size,
         ["ags", "kdu_cap", "mietenstufe"],
     ]
     lookup = pairs.loc[:, ["cap_pair_id", "kdu_cap", "mietenstufe"]]
@@ -449,11 +449,15 @@ def national_heizkosten_eur_per_month(
         The heating assumption, one figure per household size.
 
     """
-    jobcenter = wohnkostenstatistik.query("region_level == 'jobcenter'")
-    heating_measure = HEIZKOSTEN_MEASURE
-    stock_measure = BEDARFSGEMEINSCHAFT_STOCK_MEASURE
-    values = jobcenter.query("measure == @heating_measure").set_index("region_code")
-    weights = jobcenter.query("measure == @stock_measure").set_index("region_code")
+    jobcenter = wohnkostenstatistik.loc[
+        wohnkostenstatistik["region_level"] == "jobcenter"
+    ]
+    values = jobcenter.loc[jobcenter["measure"] == HEIZKOSTEN_MEASURE].set_index(
+        "region_code"
+    )
+    weights = jobcenter.loc[
+        jobcenter["measure"] == BEDARFSGEMEINSCHAFT_STOCK_MEASURE
+    ].set_index("region_code")
     per_size: dict[int, float] = {}
     for size, column in _HOUSEHOLD_SIZE_COLUMNS.items():
         joined = pd.concat(
@@ -542,10 +546,11 @@ def exit_threshold_by_gemeinde(
 def summarise_exit_thresholds(thresholds: pd.DataFrame) -> pd.DataFrame:
     """Summarise the exit-threshold contrast by Modellhaushalt.
 
-    The amplification is reported as the ratio of the two medians of the
-    absolute quantities rather than as the median of a per-Gemeinde ratio,
-    because the cap difference passes through zero and a ratio around zero is
-    not summarisable.
+    The amplification is the median over Gemeinden of the per-Gemeinde ratio of
+    the change in exit threshold to the difference between the caps. Gemeinden
+    whose caps differ by no more than one euro are excluded from it: their ratio
+    is a small number divided by a smaller one and carries no information about
+    how the transfer withdrawal translates a cap difference into income.
 
     Args:
         thresholds: The frame `exit_threshold_by_gemeinde` returns.
@@ -625,9 +630,7 @@ def plot_exit_threshold_distribution(thresholds: pd.DataFrame) -> go.Figure:
         ),
     )
     figure.update_layout(
-        title=(
-            "A cap error moves the transfer exit by more than its own size"
-        ),
+        title=("A cap error moves the transfer exit by more than its own size"),
         xaxis_title="Local cap minus Wohngeld fallback (EUR per month)",
         yaxis_title="Change in gross income at transfer exit (EUR per month)",
         updatemenus=[
@@ -638,9 +641,7 @@ def plot_exit_threshold_distribution(thresholds: pd.DataFrame) -> go.Figure:
                         "method": "update",
                         "args": [
                             {
-                                "visible": [
-                                    other == key for other in households
-                                ]
+                                "visible": [other == key for other in households]
                                 + [True],
                             },
                         ],
