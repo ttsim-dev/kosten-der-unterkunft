@@ -4,8 +4,9 @@ One row per German Gemeinde (10,980 rows, one per AGS). Values are the *maximum 
 Jobcenter / Sozialamt will recognise* as angemessen for Unterkunft under § 22 SGB II / § 35 SGB XII,
 as published by the responsible Kreis or kreisfreie Stadt.
 
-`kdu_extract_per_kreis/` holds the same rows split into one file per Kreis (400 files, named by
-`ags_kreis`). Concatenating them reproduces this table exactly.
+The Sciebo corpus (`RA-SOPHIA/KdU/`, see decision log D4) holds `kdu_extract_per_kreis/`, the
+same rows split into one file per Kreis (400 files, named by `ags_kreis`). Concatenating them
+reproduces this table exactly. That directory is not in this repository; only the pooled CSV is.
 
 ## The one distinction that matters most
 
@@ -52,7 +53,7 @@ row carries the same figure in both families.
 | `wogg_mietstufe` | numeric (1–7) | Mietstufe under § 12 Wohngeldgesetz. Complete for every Gemeinde: where a KdU document names one it is used, otherwise the statutory value from the Anlage zur Wohngeldverordnung (ab 1.1.2023). Empty only for the 172 gemeindefreie Gebiete no document covers — see below |
 | `notes` | text | Caveats: the Vergleichsraum / Mietstufe the Gemeinde was assigned to, corrections, `"nicht im Dokument"`, `"kein KdU-Dokument vorhanden"` |
 | `wogv_mietstufe` | numeric (1–7) | The statutory Mietstufe alone, straight from the Anlage zur Wohngeldverordnung. Unlike `wogg_mietstufe` it never defers to a KdU document, so the two differ for 54 Gemeinden. Empty for gemeindefreie Gebiete |
-| `wogg_hoechstbetrag_eur_1p`, `_2p`, `_4p` | numeric | Höchstbetrag für Miete nach § 12 Abs. 1 WoGG in €/Monat for 1, 2 and 4 persons, looked up from `wogv_mietstufe` in Anlage 1 WoGG (in force 1.1.2025) |
+| `wogg_hoechstbetrag_eur_1p`, `_2p`, `_4p` | numeric | Höchstbetrag für Miete nach § 12 Abs. 1 WoGG in €/Monat for 1, 2 and 4 persons, looked up from `wogv_mietstufe` in Anlage 1 WoGG, Fassung in force since 1.1.2025 and still in force at the 2026-08-31 Analysestichtag. **Base amount only** — the Klimakomponente of § 12 Abs. 7 and the Heizkostenentlastung of § 12 Abs. 6 are not included. 3p and 5p are absent here; `bld/wogg_benchmark.parquet` carries all five household sizes |
 | `kdu_vs_wogg_pct_1p`, `_2p`, `_4p` | numeric | The KdU Bruttokaltmiete cap relative to that Höchstbetrag, in percent. Positive means the Jobcenter recognises more than the Wohngeld ceiling. Empty where either input is empty |
 | `haertefall_regelung` | 1 or empty | `1` where the source document itself prints a quantified Härtefall uplift as an alternative to the Richtwert. Empty everywhere else — which does **not** mean the cap is hard there, see below. These Gemeinden are hatched on the map |
 
@@ -144,9 +145,10 @@ mention it, it applies to every household rather than to hardship cases, and it 
    because the annex's fallback sentence covers Gemeinden only. 160 cells stay empty; the
    45 gemeindefreie Gebiete whose KdU document does state a Mietstufe keep it.
 
-Two caveats. The annex in force dates from 1 January 2023 while the KdU documents here are
-mostly 2025 and 2026, so the two describe different periods — the 1 January 2025 Fortschreibung raised the
-Höchstbeträge, not the Mietstufen. And for 54 Gemeinden the KdU document contradicts the
+Two caveats. The Mietenstufen annex in force dates from 1 January 2023 while the KdU documents
+here are mostly 2025 and 2026, so the two describe different periods — the 1 January 2025
+Fortschreibung raised the Höchstbeträge, not the Mietenstufen, and both Fassungen are the ones
+in force at the 2026-08-31 Analysestichtag. And for 54 Gemeinden the KdU document contradicts the
 statute; the document's value is the one kept in this table. They are worth checking against the
 source PDFs — Helgoland states 4 against the statutory 5. Select them with
 `df.query("wogg_mietstufe.notna() and wogv_mietstufe.notna() and wogg_mietstufe != wogv_mietstufe")`.
@@ -158,7 +160,7 @@ source PDFs — Helgoland states 4 against the statutory 5. Select them with
    `max_wohnflaeche_sqm_addl`, `max_nettokaltmiete_eur_addl` and `max_bruttokaltmiete_eur_addl`
    as lower-confidence than the rest.
 2. **68 rows have caps that fall as household size rises.** Verified against the rendered source
-   pages: the documents really print it that way. For the Wetteraukreis and Südliche Weinstraße
+   pages: the documents print it that way. For the Wetteraukreis and Südliche Weinstraße
    schedules the dip appears independently in the separately printed Nettokaltmiete *and*
    Betriebskosten components, which rules out a shifted column. See `notes` on those rows.
 3. **Sub-Gemeinde differentiation is lost.** A few documents set different caps per Ortsteil
@@ -196,9 +198,9 @@ rather than an estimate — both inputs are printed, and `max_kalte_bk_*` keeps 
 visible so any sum can be taken apart again. The `notes` on those rows say the value was formed
 this way.
 
-One caveat for interpretation. Two separate caps is not the same rule as one combined ceiling:
-where rent and cold costs are capped individually, a tenant may not exceed the rent cap even
-with unusually cheap operating costs. Some Kreise say explicitly that the angemessene
+One qualification for interpretation. Two separate caps is not the same rule as one combined
+ceiling: where rent and cold costs are capped individually, a tenant may not exceed the rent
+cap even with unusually low operating costs. Some Kreise say explicitly that the angemessene
 Bruttokaltmiete *is* the sum — Recklinghausen is one — and there it is exactly the operative
 limit. Elsewhere it is the right basis for comparison but not automatically the rule the
 Jobcenter applies.
@@ -206,8 +208,12 @@ Jobcenter applies.
 ## Comparing the KdU caps to Wohngeld
 
 § 12 Absatz 1 WoGG caps the rent a Wohngeld calculation may take into account, by
-Mietstufe and household size (Anlage 1 WoGG, in force 1 January 2025, BGBl. 2024 I
-Nr. 314). That cap is defined on the **Bruttokaltmiete** — § 9 WoGG counts Nettokaltmiete
+Mietstufe and household size (Anlage 1 WoGG, Fassung in force since 1 January 2025,
+BGBl. 2024 I Nr. 314, 2. Verordnung zur Fortschreibung des Wohngeldes nach § 43 WoGG).
+That Fassung is the one in force at the 2026-08-31 Analysestichtag, so these are the
+current amounts. The Klimakomponente (§ 12 Absatz 7) and the Heizkostenentlastung
+(§ 12 Absatz 6) still carry their 1 January 2023 Wohngeld-Plus Fassung and are **not**
+part of the values stored here. That cap is defined on the **Bruttokaltmiete** — § 9 WoGG counts Nettokaltmiete
 plus kalte Betriebskosten and excludes heating and warm water — which is the same concept
 as the `max_bruttokaltmiete_*` columns here. The two are therefore directly comparable in
 euros, and `kdu_vs_wogg_pct_*` expresses the difference as a percentage of the Wohngeld

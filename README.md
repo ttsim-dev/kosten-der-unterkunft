@@ -11,7 +11,7 @@ Much of this is based on Harald Thomé's
 [KdU-Richtlinien und Mietobergrenzen](https://harald-thome.de/informationen/bundesweite-dienstanweisungen-kdu.html)
 collection of Jobcenter and Sozialamt directives on angemessene Unterkunftskosten.
 
-## Setup and use
+## Installation and use
 
 ```bash
 pixi install

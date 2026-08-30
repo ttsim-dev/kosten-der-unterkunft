@@ -36,7 +36,7 @@ class MeasureSpec:
     reflects_kdu_cap: bool = False
     """Whether the value is a KdU rent cap a Härtefallzuschlag would raise.
 
-    Drives the hatch overlay. False for the Mietstufe, the Wohngeld-Höchstbeträge
+    Selects the hatch overlay. False for the Mietstufe, the Wohngeld-Höchstbeträge
     and the Wohnflächen, none of which a rent top-up changes.
     """
 
