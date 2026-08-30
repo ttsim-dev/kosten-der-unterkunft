@@ -22,7 +22,10 @@ def test_a_dash_means_nothing_to_report_and_becomes_zero() -> None:
 
 
 def test_a_dot_marks_an_unpublished_value_and_becomes_missing() -> None:
-    """A withheld cell is missing, never zero: the dwellings exist but are not counted."""
+    """A withheld cell is missing, never zero.
+
+    The dwellings exist; the Zensus simply does not report how many.
+    """
     assert pd.isna(_to_numeric(pd.Series(["."])).iloc[0])
 
 

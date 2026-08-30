@@ -173,9 +173,7 @@ def build_jobcenter_kreis_crosswalk(extract: pd.DataFrame) -> pd.DataFrame:
         `jobcenter_label`, `district_ags` and `n_districts`.
 
     """
-    regions = extract[
-        ["region_level", "region_code", "region_label"]
-    ].drop_duplicates()
+    regions = extract[["region_level", "region_code", "region_label"]].drop_duplicates()
     kreise = regions.query("region_level == 'kreis'")
     jobcenter = regions.query("region_level == 'jobcenter'")
 
@@ -280,7 +278,11 @@ def _reshape_measures(extract: pd.DataFrame) -> pd.DataFrame:
     long_frame["measure"] = long_frame["measure"].map(dict(MEASURES))
 
     wide = (
-        long_frame.set_index(["region_code", "household_size", "measure"])["value"]
+        long_frame.set_index(  # noqa: PD010
+            ["region_code", "household_size", "measure"],
+        )["value"]
+        # `unstack` raises on a duplicated key, where `pivot_table` would silently
+        # average it away; a duplicate here means the source was misread.
         .unstack("measure")
         .reset_index()
         .rename(columns={"region_code": "jobcenter_id"})
@@ -328,7 +330,5 @@ def _unambiguous(keys: pd.Series, values: pd.Series) -> dict[str, str]:
     """Keep only the keys that identify a single region."""
     counts = keys.value_counts()
     return {
-        key: value
-        for key, value in zip(keys, values, strict=True)
-        if counts[key] == 1
+        key: value for key, value in zip(keys, values, strict=True) if counts[key] == 1
     }

@@ -91,6 +91,9 @@ per-file-ignores."scripts/*" = [
   "INP001", # Implicit namespace package (scripts are run, not imported)
   "T201",   # print (scripts report progress to stdout)
 ]
+per-file-ignores."**/task_*.py" = [
+  "B008", # Function call in argument default: pytask discovers dependencies this way
+]
 per-file-ignores."tests/*" = [
   "D",       # Docstrings
   "INP001",  # Implicit namespace packages
