@@ -336,8 +336,85 @@ DATA_CATALOG.add("gemeinden", CLEAN_DATA / "gemeinden.parquet")
 DATA_CATALOG.add("wohnkostenstatistik", CLEAN_DATA / "wohnkostenstatistik.parquet")
 DATA_CATALOG.add("zensus_rents", CLEAN_DATA / "zensus_rents.parquet")
 
-# Results.
+# The seven measures the map offers, each also exported as its own file.
+MAP_MEASURES: tuple[str, ...] = (
+    "mietenstufe",
+    "kdu_cap",
+    "kdu_cap_per_sqm",
+    "wohngeld_fallback_cap",
+    "cap_ratio",
+    "max_wohnflaeche",
+    "share_of_stock_above_cap",
+)
+
+# How far a local cap departs from the statutory fallback, and how much
+# variation the Mietenstufe leaves unaccounted for.
+DATA_CATALOG.add(
+    "cap_comparison_distribution",
+    KDU_VS_WOHNGELD / "cap_comparison_distribution.html",
+)
+DATA_CATALOG.add(
+    "cap_ratio_spread_distribution",
+    KDU_VS_WOHNGELD / "cap_ratio_spread_distribution.html",
+)
+DATA_CATALOG.add(
+    "mietenstufe_dispersion_figure",
+    KDU_VS_WOHNGELD / "mietenstufe_dispersion.html",
+)
+DATA_CATALOG.add("cap_comparison_table", KDU_VS_WOHNGELD / "cap_comparison.csv")
+DATA_CATALOG.add(
+    "mietenstufe_variance_shares",
+    KDU_VS_WOHNGELD / "mietenstufe_variance_shares.csv",
+)
+
+# Whether local caps track local market rents, and how much of the local
+# rented stock each cap places out of reach.
+DATA_CATALOG.add(
+    "market_rent_correlation_figure",
+    MARKET_RENT_COMPARISON / "market_rent_correlation.html",
+)
+DATA_CATALOG.add(
+    "market_rent_correlation_table",
+    MARKET_RENT_COMPARISON / "market_rent_correlation.csv",
+)
+DATA_CATALOG.add(
+    "share_of_stock_above_cap_figure",
+    MARKET_RENT_COMPARISON / "share_of_stock_above_cap.html",
+)
+DATA_CATALOG.add(
+    "share_of_stock_above_cap_table",
+    MARKET_RENT_COMPARISON / "share_of_stock_above_cap.csv",
+)
+DATA_CATALOG.add(
+    "share_of_stock_above_cap_gemeinde",
+    MARKET_RENT_COMPARISON / "share_of_stock_above_cap_gemeinde.parquet",
+)
+
+# How far the choice of cap moves the gross income at which a household
+# leaves the transfer system.
+DATA_CATALOG.add(
+    "exit_threshold_distribution",
+    ELIGIBILITY / "exit_threshold_distribution.html",
+)
+DATA_CATALOG.add("exit_threshold_table", ELIGIBILITY / "exit_threshold.csv")
+DATA_CATALOG.add(
+    "exit_threshold_gemeinde",
+    ELIGIBILITY / "exit_threshold_gemeinde.parquet",
+)
+
+# Whether the collected caps agree with what Jobcenter actually recognise.
+DATA_CATALOG.add(
+    "wohnkostenstatistik_validation",
+    VALIDATION / "wohnkostenstatistik_validation.csv",
+)
+
+# The map, once with every measure in one dropdown and once per measure.
 DATA_CATALOG.add("germany_map", MAP / "germany_map.html")
+for _measure in MAP_MEASURES:
+    DATA_CATALOG.add(
+        f"germany_map_{_measure}",
+        MAP / f"germany_map_{_measure}.html",
+    )
 
 
 def catalog_path(name: str) -> Path:
