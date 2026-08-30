@@ -16,6 +16,8 @@ from kdu.market_rent_comparison.share_of_stock_above_cap import (
 KDU_CAPS = catalog_path("kdu_caps")
 WOHNGELD_FALLBACK = catalog_path("wohngeld_fallback")
 ZENSUS_RENTS = catalog_path("zensus_rents")
+GEMEINDEN = catalog_path("gemeinden")
+WOHNKOSTENSTATISTIK = catalog_path("wohnkostenstatistik")
 GEMEINDE_SHARES = catalog_path("share_of_stock_above_cap_gemeinde")
 SHARES_TABLE = catalog_path("share_of_stock_above_cap_table")
 SHARES_FIGURE = catalog_path("share_of_stock_above_cap_figure")
@@ -25,6 +27,8 @@ def task_share_of_stock_above_cap(
     kdu_caps_file: Path = KDU_CAPS,
     wohngeld_fallback_file: Path = WOHNGELD_FALLBACK,
     zensus_rents_file: Path = ZENSUS_RENTS,
+    gemeinden_file: Path = GEMEINDEN,
+    wohnkostenstatistik_file: Path = WOHNKOSTENSTATISTIK,
     gemeinde_file: Annotated[Path, Product] = GEMEINDE_SHARES,
     table_file: Annotated[Path, Product] = SHARES_TABLE,
     figure_file: Annotated[Path, Product] = SHARES_FIGURE,
@@ -34,6 +38,8 @@ def task_share_of_stock_above_cap(
         pd.read_parquet(kdu_caps_file),
         pd.read_parquet(wohngeld_fallback_file),
         pd.read_parquet(zensus_rents_file),
+        pd.read_parquet(gemeinden_file),
+        pd.read_parquet(wohnkostenstatistik_file),
     )
     summary = summarise_shares(gemeinde_shares)
     figure = share_of_stock_above_cap_figure(gemeinde_shares)

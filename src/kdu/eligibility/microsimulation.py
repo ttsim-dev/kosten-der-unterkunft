@@ -77,8 +77,6 @@ SCENARIOS: tuple[str, str] = (SCENARIO_LOCAL_CAP, SCENARIO_FALLBACK)
 
 # The measure of recognised heating costs read from the Wohnkostenstatistik, and
 # the stock of Bedarfsgemeinschaften its national mean is weighted by.
-HEIZKOSTEN_MEASURE = "recognised_heizkosten_eur_per_bg"
-BEDARFSGEMEINSCHAFT_STOCK_MEASURE = "bg_stock_with_recognised_kdu"
 
 # Number of ascending income points that bracket the exit threshold and carry
 # the monotonicity assertion before bisection starts.
@@ -158,9 +156,6 @@ _DTYPE_DEFAULTS: MappingProxyType[str, Any] = MappingProxyType(
 )
 
 # Wohnkostenstatistik column names for each household size.
-_HOUSEHOLD_SIZE_COLUMNS: MappingProxyType[int, str] = MappingProxyType(
-    {1: "1_person", 2: "2_persons", 3: "3_persons", 4: "4_persons", 5: "5_persons"},
-)
 
 
 @dataclass(frozen=True)
@@ -437,42 +432,33 @@ def national_heizkosten_eur_per_month(
     """Derive the heating assumption from the Wohnkostenstatistik.
 
     The Bundesagentur für Arbeit publishes no national row, so the mean over
-    Jobcenter is weighted by the stock of Bedarfsgemeinschaften with recognised
-    Kosten der Unterkunft. An unweighted mean of Jobcenter figures would
-    over-weight small Jobcenter.
+    Jobcenter is weighted by the stock of Bedarfsgemeinschaften. An unweighted
+    mean of Jobcenter figures would over-weight small Jobcenter.
 
     Args:
-        wohnkostenstatistik: The committed extract, one row per Jobcenter and
-            measure, with one column per household size.
+        wohnkostenstatistik: The cleaned table, one row per Jobcenter and
+            household size, carrying `heizkosten` and `bedarfsgemeinschaften`.
 
     Returns:
         The heating assumption, one figure per household size.
 
     """
-    jobcenter = wohnkostenstatistik.loc[
-        wohnkostenstatistik["region_level"] == "jobcenter"
-    ]
-    values = jobcenter.loc[jobcenter["measure"] == HEIZKOSTEN_MEASURE].set_index(
-        "region_code"
-    )
-    weights = jobcenter.loc[
-        jobcenter["measure"] == BEDARFSGEMEINSCHAFT_STOCK_MEASURE
-    ].set_index("region_code")
-    per_size: dict[int, float] = {}
-    for size, column in _HOUSEHOLD_SIZE_COLUMNS.items():
-        joined = pd.concat(
-            {"value": values[column], "weight": weights[column]},
-            axis=1,
-        ).dropna()
-        joined = joined.query("weight > 0")
-        per_size[size] = float(
-            round_currency(
-                (joined["value"] * joined["weight"]).sum() / joined["weight"].sum(),
-            ),
-        )
+    reported = wohnkostenstatistik.dropna(
+        subset=["recognised_heizkosten", "bedarfsgemeinschaften"],
+    ).query("bedarfsgemeinschaften > 0")
+    weighted = reported["recognised_heizkosten"] * reported["bedarfsgemeinschaften"]
+    per_size = {
+        int(size): float(round_currency(value))
+        for size, value in (
+            weighted.groupby(reported["household_size"]).sum()
+            / reported["bedarfsgemeinschaften"]
+            .groupby(reported["household_size"])
+            .sum()
+        ).items()
+    }
     return HeatingAssumption(
         per_household_size=MappingProxyType(per_size),
-        n_regions=int(values.index.nunique()),
+        n_regions=int(reported["jobcenter_id"].nunique()),
     )
 
 

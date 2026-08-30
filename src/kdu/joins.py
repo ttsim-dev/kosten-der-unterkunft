@@ -15,8 +15,8 @@ import pandas as pd
 # How many offending keys an error message lists before truncating.
 MAX_KEYS_IN_MESSAGE = 10
 
+# The join types the cleaning code uses; nothing here needs an outer join.
 JoinType = Literal["left", "inner"]
-"""The join types the cleaning code uses; nothing here needs an outer join."""
 
 
 def merge_without_duplicating(

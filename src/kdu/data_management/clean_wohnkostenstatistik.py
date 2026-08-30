@@ -35,6 +35,7 @@ from kdu.joins import merge_without_duplicating
 KREIS_AGS_LENGTH = 5
 
 # The category columns of a committed extract, in publication order.
+# Category column to household size. Six and more is outside the reported sizes.
 HOUSEHOLD_SIZE_CATEGORIES: Mapping[str, int] = MappingProxyType(
     {
         "1_person": 1,
@@ -44,7 +45,6 @@ HOUSEHOLD_SIZE_CATEGORIES: Mapping[str, int] = MappingProxyType(
         "5_persons": 5,
     },
 )
-"""Category column → household size. Six and more is outside the reported sizes."""
 
 # The measures the validation reads. Everything else the source publishes is
 # left in the committed extract rather than carried into the analysis tables.
@@ -53,6 +53,9 @@ MEASURES: Mapping[str, str] = MappingProxyType(
         "actual_bruttokaltmiete_eur_per_bg": "actual_bruttokaltmiete",
         "recognised_bruttokaltmiete_eur_per_bg": "recognised_bruttokaltmiete",
         "bg_stock": "bedarfsgemeinschaften",
+        "actual_kalte_betriebskosten_eur_per_sqm": "kalte_betriebskosten_per_sqm",
+        "actual_heizkosten_eur_per_bg": "actual_heizkosten",
+        "recognised_heizkosten_eur_per_bg": "recognised_heizkosten",
     },
 )
 
@@ -64,6 +67,9 @@ WOHNKOSTENSTATISTIK_COLUMNS: tuple[str, ...] = (
     "bedarfsgemeinschaften",
     "actual_bruttokaltmiete",
     "recognised_bruttokaltmiete",
+    "kalte_betriebskosten_per_sqm",
+    "actual_heizkosten",
+    "recognised_heizkosten",
     "non_recognised_share",
 )
 
@@ -87,6 +93,8 @@ _REGION_QUALIFIERS: tuple[str, ...] = (
     "eifelkreis",
 )
 
+# Jobcenter whose Kreise their published label does not identify.  Each entry reproduces
+# the Jobcenter's own stock of Bedarfsgemeinschaften as the sum over the listed Kreise.
 JOBCENTER_KREIS_OVERRIDES: Mapping[str, tuple[str, ...]] = MappingProxyType(
     {
         # Jobcenter whose name names no Kreis, or names it in a way no rule folds.
@@ -118,11 +126,6 @@ JOBCENTER_KREIS_OVERRIDES: Mapping[str, tuple[str, ...]] = MappingProxyType(
         "t96208": ("11000",),
     },
 )
-"""Jobcenter whose Kreise their published label does not identify.
-
-Each entry reproduces the Jobcenter's own stock of Bedarfsgemeinschaften as the
-sum over the listed Kreise.
-"""
 
 
 def build_wohnkostenstatistik(extract: pd.DataFrame) -> pd.DataFrame:

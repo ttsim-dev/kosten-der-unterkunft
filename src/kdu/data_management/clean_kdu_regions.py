@@ -168,6 +168,7 @@ def build_kdu_cap(long_frame: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame({"kdu_cap": cap, "calculation_method": method})
 
 
+# Wording in the collectors' notes that names the statutory fallback.
 FALLBACK_NOTES_PATTERN = re.compile(
     r"sicherheitszuschlag"
     r"|sicherungszuschlag"
@@ -180,7 +181,6 @@ FALLBACK_NOTES_PATTERN = re.compile(
     r"|wohngeld.{0,20}h(?:ö|oe)chstbetr",
     re.IGNORECASE,
 )
-"""Wording in the collectors' notes that names the statutory fallback."""
 
 
 def detect_wohngeld_rule(
@@ -211,8 +211,12 @@ def detect_wohngeld_rule(
 
     """
     ratio = caps["kdu_cap"] / hoechstbetrag["wohngeld_hoechstbetrag"]
-    at_markup = (ratio - WOHNGELD_FALLBACK_MARKUP).abs().le(
-        WOHNGELD_FALLBACK_MARKUP_TOLERANCE,
+    at_markup = (
+        (ratio - WOHNGELD_FALLBACK_MARKUP)
+        .abs()
+        .le(
+            WOHNGELD_FALLBACK_MARKUP_TOLERANCE,
+        )
     )
     per_gemeinde = (
         pd.DataFrame(
@@ -232,9 +236,9 @@ def detect_wohngeld_rule(
             n_at_markup=("at_markup", "sum"),
         )
     )
-    by_ratio = per_gemeinde["n_ratios"].ge(MIN_HOUSEHOLD_SIZES_AT_MARKUP) & per_gemeinde[
-        "n_at_markup"
-    ].eq(per_gemeinde["n_ratios"])
+    enough_sizes = per_gemeinde["n_ratios"].ge(MIN_HOUSEHOLD_SIZES_AT_MARKUP)
+    every_size_at_markup = per_gemeinde["n_at_markup"].eq(per_gemeinde["n_ratios"])
+    by_ratio = enough_sizes & every_size_at_markup
     return pd.DataFrame(
         {
             "ags": per_gemeinde["ags"],
@@ -277,9 +281,7 @@ def read_kdu_gemeinden(path: Path) -> pd.DataFrame:
     """
     frame = pd.read_csv(path, engine="pyarrow")
     frame["ags_gemeinde"] = frame["ags_gemeinde"].astype("string").str.zfill(AGS_LENGTH)
-    frame["ags_kreis"] = (
-        frame["ags_kreis"].astype("string").str.zfill(KREIS_AGS_LENGTH)
-    )
+    frame["ags_kreis"] = frame["ags_kreis"].astype("string").str.zfill(KREIS_AGS_LENGTH)
     _fail_if_kreis_prefix_mismatch(frame)
     return frame
 

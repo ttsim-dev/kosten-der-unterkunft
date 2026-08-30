@@ -5,12 +5,15 @@ import pandas as pd
 import pytest
 
 from kdu.market_rent_comparison.share_of_stock_above_cap import (
-    KALTE_BETRIEBSKOSTEN_EUR_PER_SQM,
     RENT_BANDS,
+    _kalte_betriebskosten_per_gemeinde,
     build_gemeinde_shares,
     nettokaltmiete_threshold,
     share_above_threshold,
 )
+
+# Kalte Betriebskosten used throughout these tests, in euro per square metre.
+BETRIEBSKOSTEN = 1.83
 
 
 def _band_counts(**counts: float) -> np.ndarray:
@@ -21,14 +24,22 @@ def _band_counts(**counts: float) -> np.ndarray:
 
 def test_nettokaltmiete_threshold_subtracts_betriebskosten_from_rent_per_sqm() -> None:
     """A 500 euro cap over 50 square metres leaves 10 euro per square metre gross."""
-    threshold = nettokaltmiete_threshold(np.array([500.0]), np.array([50.0]))
-    expected = 10.0 - KALTE_BETRIEBSKOSTEN_EUR_PER_SQM
+    threshold = nettokaltmiete_threshold(
+        np.array([500.0]),
+        np.array([50.0]),
+        np.array([BETRIEBSKOSTEN]),
+    )
+    expected = 10.0 - BETRIEBSKOSTEN
     np.testing.assert_allclose(threshold, [expected], atol=1e-12)
 
 
 def test_nettokaltmiete_threshold_is_missing_when_no_wohnflaeche_is_stated() -> None:
     """A cap without an admissible Wohnfläche yields no threshold."""
-    threshold = nettokaltmiete_threshold(np.array([500.0]), np.array([0.0]))
+    threshold = nettokaltmiete_threshold(
+        np.array([500.0]),
+        np.array([0.0]),
+        np.array([BETRIEBSKOSTEN]),
+    )
     assert np.isnan(threshold[0])
 
 
@@ -107,20 +118,36 @@ def test_build_gemeinde_shares_reports_the_difference_between_the_two_caps() -> 
         },
     )
 
-    shares = build_gemeinde_shares(kdu_caps, wohngeld_fallback, zensus_rents)
+    gemeinden = pd.DataFrame(
+        {"ags": ["01001000"], "district_ags": ["01001"]},
+    )
+    wohnkostenstatistik = pd.DataFrame(
+        {
+            "district_ags": ["01001"],
+            "household_size": [1],
+            "bedarfsgemeinschaften": [100.0],
+            "kalte_betriebskosten_per_sqm": [BETRIEBSKOSTEN],
+        },
+    )
+
+    shares = build_gemeinde_shares(
+        kdu_caps,
+        wohngeld_fallback,
+        zensus_rents,
+        gemeinden,
+        wohnkostenstatistik,
+    )
 
     # Local cap: 500 / 50 - 1.83 = 8.17, so the 6-to-8 band is wholly below and
     # 8-to-10 contributes (10 - 8.17) / 2 of its 100 dwellings.
     np.testing.assert_allclose(
         shares.loc[0, "share_above_local_kdu_cap"],
-        (10.0 - (10.0 - KALTE_BETRIEBSKOSTEN_EUR_PER_SQM)) / 2.0 * 100.0 / 200.0,
+        (10.0 - (10.0 - BETRIEBSKOSTEN)) / 2.0 * 100.0 / 200.0,
         atol=1e-12,
     )
     # Fallback: 400 / 50 - 1.83 = 6.17, leaving (8 - 6.17) / 2 of the 6-to-8
     # band and all of 8-to-10 above.
-    expected_fallback = (
-        (8.0 - (8.0 - KALTE_BETRIEBSKOSTEN_EUR_PER_SQM)) / 2.0 * 100.0 + 100.0
-    ) / 200.0
+    expected_fallback = ((8.0 - (8.0 - BETRIEBSKOSTEN)) / 2.0 * 100.0 + 100.0) / 200.0
     np.testing.assert_allclose(
         shares.loc[0, "share_above_wohngeld_fallback_cap"],
         expected_fallback,
@@ -134,3 +161,48 @@ def test_build_gemeinde_shares_reports_the_difference_between_the_two_caps() -> 
         ),
         atol=1e-12,
     )
+
+
+def test_kalte_betriebskosten_are_weighted_by_bedarfsgemeinschaften() -> None:
+    """A Kreis reporting two household sizes is averaged by its claimant counts."""
+    gemeinden = pd.DataFrame({"ags": ["09999000"], "district_ags": ["09999"]})
+    wohnkostenstatistik = pd.DataFrame(
+        {
+            "district_ags": ["09999", "09999"],
+            "household_size": [1, 2],
+            "bedarfsgemeinschaften": [300.0, 100.0],
+            "kalte_betriebskosten_per_sqm": [2.00, 1.00],
+        },
+    )
+
+    betriebskosten = _kalte_betriebskosten_per_gemeinde(
+        pd.Series(["09999000"]),
+        gemeinden,
+        wohnkostenstatistik,
+    )
+
+    # (300 * 2.00 + 100 * 1.00) / 400 = 1.75
+    np.testing.assert_allclose(betriebskosten.to_numpy(), [1.75], atol=1e-12)
+
+
+def test_a_kreis_reporting_no_betriebskosten_takes_the_national_mean() -> None:
+    """A Gemeinde whose Kreis is absent falls back to the claimant-weighted mean."""
+    gemeinden = pd.DataFrame(
+        {"ags": ["09999000", "08888000"], "district_ags": ["09999", "08888"]},
+    )
+    wohnkostenstatistik = pd.DataFrame(
+        {
+            "district_ags": ["09999"],
+            "household_size": [1],
+            "bedarfsgemeinschaften": [400.0],
+            "kalte_betriebskosten_per_sqm": [1.75],
+        },
+    )
+
+    betriebskosten = _kalte_betriebskosten_per_gemeinde(
+        pd.Series(["08888000"]),
+        gemeinden,
+        wohnkostenstatistik,
+    )
+
+    np.testing.assert_allclose(betriebskosten.to_numpy(), [1.75], atol=1e-12)

@@ -34,7 +34,7 @@ def main() -> None:
     raw_path = BLD / "gemeinden_raw.geojson"
     if not raw_path.exists():
         print(f"downloading {SOURCE_URL}")
-        urllib.request.urlretrieve(SOURCE_URL, raw_path)  # noqa: S310
+        urllib.request.urlretrieve(SOURCE_URL, raw_path)
     raw = json.loads(raw_path.read_text(encoding="utf-8"))
 
     slim = _slim_properties(simplify_feature_collection(raw, decimals=DECIMALS))

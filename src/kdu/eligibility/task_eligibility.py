@@ -6,7 +6,7 @@ from typing import Annotated
 import pandas as pd
 from pytask import Product
 
-from kdu.config import DATA, LEGAL_VINTAGE, catalog_path
+from kdu.config import catalog_path
 from kdu.eligibility.microsimulation import (
     exit_threshold_by_gemeinde,
     national_heizkosten_eur_per_month,
@@ -14,16 +14,11 @@ from kdu.eligibility.microsimulation import (
     summarise_exit_thresholds,
 )
 
-REFERENCE_MONTH = LEGAL_VINTAGE.wohnkostenstatistik_reference_month.replace("-", "")
-WOHNKOSTEN_EXTRACT = (
-    DATA / "ba_wohnkosten" / f"ba_wohnkosten_{REFERENCE_MONTH}_household_size.csv"
-)
-
 
 def task_eligibility(
     kdu_caps_file: Path = catalog_path("kdu_caps"),
     wohngeld_fallback_file: Path = catalog_path("wohngeld_fallback"),
-    wohnkosten_extract_file: Path = WOHNKOSTEN_EXTRACT,
+    wohnkostenstatistik_file: Path = catalog_path("wohnkostenstatistik"),
     gemeinde_file: Annotated[Path, Product] = catalog_path("exit_threshold_gemeinde"),
     table_file: Annotated[Path, Product] = catalog_path("exit_threshold_table"),
     figure_file: Annotated[Path, Product] = catalog_path(
@@ -40,7 +35,7 @@ def task_eligibility(
         validate="one_to_one",
     )
     heating = national_heizkosten_eur_per_month(
-        pd.read_csv(wohnkosten_extract_file, engine="pyarrow"),
+        pd.read_parquet(wohnkostenstatistik_file),
     )
     thresholds = exit_threshold_by_gemeinde(sample, heating)
 

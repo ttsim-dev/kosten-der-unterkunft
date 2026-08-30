@@ -28,12 +28,13 @@ from types import MappingProxyType
 
 import pandas as pd
 
+# Stichtag of the Zensus 2022.
 ZENSUS_REFERENCE_DATE = "2022-05-15"
-"""Stichtag of the Zensus 2022."""
 
 # Digits in the Gemeinde AGS.
 AGS_LENGTH = 8
 
+# Dwelling counts by Nettokaltmiete class, in euro per square metre.
 RENT_CLASS_MEASURES: Mapping[str, str] = MappingProxyType(
     {
         "MIETE_EURM2_2__01": "dwellings_nettokaltmiete_eur_per_sqm_under_4",
@@ -48,7 +49,6 @@ RENT_CLASS_MEASURES: Mapping[str, str] = MappingProxyType(
         "MIETE_EURM2_2__10": "dwellings_nettokaltmiete_eur_per_sqm_20_and_more",
     },
 )
-"""Dwelling counts by Nettokaltmiete class, in euro per square metre."""
 
 SCALAR_MEASURES: Mapping[str, str] = MappingProxyType(
     {
@@ -58,6 +58,7 @@ SCALAR_MEASURES: Mapping[str, str] = MappingProxyType(
     },
 )
 
+# Region levels whose German label maps one to one. Kreise are matched by prefix.
 REGION_LEVELS: Mapping[str, str] = MappingProxyType(
     {
         "Bund": "bund",
@@ -67,8 +68,10 @@ REGION_LEVELS: Mapping[str, str] = MappingProxyType(
         "Gemeinde": "gemeinde",
     },
 )
-"""Region levels whose German label maps one to one. Kreise are matched by prefix."""
 
+# Digits the Regionalschlüssel has at each level.  The workbook stores the key as a
+# number, so Schleswig-Holstein's `01` arrives as `1` and Flensburg's `010010000000` as
+# `10010000000`. The level decides how many leading zeros to restore.
 REGIONALSCHLUESSEL_WIDTHS: Mapping[str, int] = MappingProxyType(
     {
         "bund": 2,
@@ -79,12 +82,6 @@ REGIONALSCHLUESSEL_WIDTHS: Mapping[str, int] = MappingProxyType(
         "gemeinde": 12,
     },
 )
-"""Digits the Regionalschlüssel has at each level.
-
-The workbook stores the key as a number, so Schleswig-Holstein's `01` arrives
-as `1` and Flensburg's `010010000000` as `10010000000`. The level decides how
-many leading zeros to restore.
-"""
 
 _KREIS_LABEL_PREFIX = "Stadtkreis"
 

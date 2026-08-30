@@ -59,8 +59,7 @@ def test_a_nettokaltmiete_without_a_cold_cost_cap_yields_no_cap() -> None:
     result = build_kdu_cap(_long_frame([None], [380.0], [None]))
     assert pd.isna(result["kdu_cap"].iloc[0])
     assert (
-        result["calculation_method"].iloc[0]
-        == CalculationMethod.NOT_CONSTRUCTED.value
+        result["calculation_method"].iloc[0] == CalculationMethod.NOT_CONSTRUCTED.value
     )
 
 

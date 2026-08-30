@@ -118,22 +118,16 @@ def test_national_heizkosten_weights_jobcenter_by_their_stock() -> None:
     """A large Jobcenter moves the national mean more than a small one."""
     statistic = pd.DataFrame(
         {
-            "region_level": ["jobcenter"] * 4,
-            "region_code": ["t01", "t01", "t02", "t02"],
-            "measure": [
-                "recognised_heizkosten_eur_per_bg",
-                "bg_stock_with_recognised_kdu",
-                "recognised_heizkosten_eur_per_bg",
-                "bg_stock_with_recognised_kdu",
-            ],
-            "1_person": [100.0, 300.0, 200.0, 100.0],
-            "2_persons": [100.0, 300.0, 200.0, 100.0],
-            "3_persons": [100.0, 300.0, 200.0, 100.0],
-            "4_persons": [100.0, 300.0, 200.0, 100.0],
-            "5_persons": [100.0, 300.0, 200.0, 100.0],
+            "jobcenter_id": ["t01", "t02"],
+            "household_size": [1, 1],
+            "recognised_heizkosten": [100.0, 200.0],
+            "bedarfsgemeinschaften": [300.0, 100.0],
         },
     )
+
     heating = national_heizkosten_eur_per_month(statistic)
+
+    # (300 * 100 + 100 * 200) / 400 = 125
     assert heating.per_household_size[1] == 125.0
 
 

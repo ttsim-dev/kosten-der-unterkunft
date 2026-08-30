@@ -17,7 +17,7 @@ as a monthly Bruttokaltmiete for an admissible Wohnfläche, so it is converted
 to a Nettokaltmiete per square metre before the two can be compared:
 
 ```
-threshold = kdu_cap / max_area_sqm - KALTE_BETRIEBSKOSTEN_EUR_PER_SQM
+threshold = kdu_cap / max_area_sqm - kalte_betriebskosten_per_sqm
 ```
 
 Three properties of the measurement bound what it can be asked to support.
@@ -26,10 +26,11 @@ Three properties of the measurement bound what it can be asked to support.
   asked of a new tenant are higher, so a household actually looking for a
   dwelling faces a tighter market than these shares describe, and every share
   reported here is a lower bound for a mover.
-- The conversion from Bruttokaltmiete to Nettokaltmiete applies **one
-  national figure** for kalte Betriebskosten to every Gemeinde. Betriebskosten
-  vary regionally, so the threshold is placed slightly too high in Gemeinden
-  with above-average Betriebskosten and slightly too low elsewhere.
+- The conversion from Bruttokaltmiete to Nettokaltmiete uses the kalte
+  Betriebskosten the Bundesagentur reports for the **Kreis**, weighted by
+  Bedarfsgemeinschaften across household sizes. That is the finest resolution
+  published; within a Kreis every Gemeinde receives the same figure. Where a
+  Kreis reports none, the Bedarfsgemeinschaft-weighted national mean stands in.
 - The count covers the **whole rented stock**, not only dwellings within the
   admissible Wohnfläche for the household size in question. A single person
   may not rent a 120 square metre dwelling at any price, so the accessible
@@ -56,13 +57,9 @@ FALLBACK_COLOUR = "#8c8c8c"
 LOCAL_CAP_COLOUR = "#4c9be8"
 DIFFERENCE_COLOUR = "#e8a34c"
 
-# Kalte Betriebskosten per square metre, in euro per month.
-#
-# The Bundesagentur reports `actual_kalte_betriebskosten_eur_per_sqm` for each
-# Jobcenter and household size; this is the unweighted mean of that measure
-# over all Jobcenter and sizes in the reference month. It is applied to every
-# Gemeinde, which is the second caveat named in the module docstring.
-KALTE_BETRIEBSKOSTEN_EUR_PER_SQM = 1.83
+# Column carrying the kalte Betriebskosten a Gemeinde is charged, in euro per
+# square metre and month.
+KALTE_BETRIEBSKOSTEN_COLUMN = "kalte_betriebskosten_per_sqm"
 
 # Upper edge assumed for the open-ended top band of the Zensus distribution.
 #
@@ -111,6 +108,8 @@ def build_gemeinde_shares(
     kdu_caps: pd.DataFrame,
     wohngeld_fallback: pd.DataFrame,
     zensus_rents: pd.DataFrame,
+    gemeinden: pd.DataFrame,
+    wohnkostenstatistik: pd.DataFrame,
 ) -> pd.DataFrame:
     """Return the share of the local rented stock above each cap per Gemeinde.
 
@@ -118,6 +117,9 @@ def build_gemeinde_shares(
         kdu_caps: The local caps, keyed `ags` by `household_size`.
         wohngeld_fallback: The statutory fallback, keyed the same way.
         zensus_rents: The Zensus rents and band counts, keyed `ags`.
+        gemeinden: Gemeinde metadata, keyed `ags`, supplying `district_ags`.
+        wohnkostenstatistik: The Bundesagentur record, supplying the kalte
+            Betriebskosten charged in each Kreis.
 
     Returns:
         One row per `ags` and `household_size`, carrying the two thresholds in
@@ -126,6 +128,11 @@ def build_gemeinde_shares(
 
     """
     frame = _join_caps_to_rent_bands(kdu_caps, wohngeld_fallback, zensus_rents)
+    betriebskosten = _kalte_betriebskosten_per_gemeinde(
+        frame["ags"],
+        gemeinden,
+        wohnkostenstatistik,
+    ).to_numpy(dtype=float)
     band_counts = frame.loc[:, [band.column for band in RENT_BANDS]].to_numpy(
         dtype=float,
     )
@@ -141,6 +148,7 @@ def build_gemeinde_shares(
         threshold = nettokaltmiete_threshold(
             frame[cap_column].to_numpy(dtype=float),
             frame["max_area_sqm"].to_numpy(dtype=float),
+            betriebskosten,
         )
         result[f"threshold_{name}_eur_per_sqm"] = threshold
         result[f"share_above_{name}"] = share_above_threshold(band_counts, threshold)
@@ -158,12 +166,15 @@ def build_gemeinde_shares(
 def nettokaltmiete_threshold(
     cap_eur_per_month: np.ndarray,
     max_area_sqm: np.ndarray,
+    kalte_betriebskosten_per_sqm: np.ndarray,
 ) -> np.ndarray:
     """Convert a monthly Bruttokaltmiete cap to a Nettokaltmiete per square metre.
 
     Args:
         cap_eur_per_month: The recognisable Bruttokaltmiete, in euro per month.
         max_area_sqm: The admissible Wohnfläche the cap is stated for.
+        kalte_betriebskosten_per_sqm: Kalte Betriebskosten charged locally, in
+            euro per square metre and month, one value per row.
 
     Returns:
         The rent per square metre a dwelling may cost net of kalte
@@ -177,7 +188,7 @@ def nettokaltmiete_threshold(
             out=np.full_like(cap_eur_per_month, np.nan, dtype=float),
             where=max_area_sqm > 0,
         )
-    return per_sqm - KALTE_BETRIEBSKOSTEN_EUR_PER_SQM
+    return per_sqm - kalte_betriebskosten_per_sqm
 
 
 def share_above_threshold(
@@ -368,3 +379,35 @@ def _fail_if_band_counts_misshaped(band_counts: np.ndarray) -> None:
             f"(n_gemeinden, {len(RENT_BANDS)}), not {band_counts.shape}"
         )
         raise ValueError(msg)
+
+
+def _kalte_betriebskosten_per_gemeinde(
+    ags: pd.Series,
+    gemeinden: pd.DataFrame,
+    wohnkostenstatistik: pd.DataFrame,
+) -> pd.Series:
+    """Return the kalte Betriebskosten each Gemeinde is charged.
+
+    The unit is euro per square metre and month.
+
+    The Bundesagentur publishes the figure per Jobcenter and household size.
+    It is averaged over household sizes weighted by Bedarfsgemeinschaften,
+    which gives the amount the Kreis's claimants actually face, and then
+    carried to every Gemeinde of that Kreis. Kreise reporting nothing take the
+    national mean on the same weighting.
+    """
+    reported = wohnkostenstatistik.dropna(
+        subset=[KALTE_BETRIEBSKOSTEN_COLUMN, "bedarfsgemeinschaften", "district_ags"],
+    )
+    weight = reported["bedarfsgemeinschaften"]
+    weighted = reported[KALTE_BETRIEBSKOSTEN_COLUMN] * weight
+    per_kreis = (
+        weighted.groupby(reported["district_ags"]).sum()
+        / weight.groupby(
+            reported["district_ags"],
+        ).sum()
+    )
+    national = weighted.sum() / weight.sum()
+
+    district = ags.map(gemeinden.set_index("ags")["district_ags"])
+    return district.map(per_kreis).astype(float).fillna(national)
