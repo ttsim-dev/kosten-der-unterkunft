@@ -250,7 +250,7 @@ def test_single_parent_household_carries_the_alleinerziehenden_mehrbedarf(
 def test_couple_household_sums_four_regelsaetze_net_of_kindergeld(
     zero_income_by_household: dict[str, float],
 ) -> None:
-    """§12.8 test 7: two RBS 2 adults, a child of 8 and a child of 14, less Kindergeld."""
+    """Two RBS 2 adults, a child of 8 and a child of 14, less Kindergeld."""
     kindergeld_m = 2 * 259.0
     expected = 506.0 + 506.0 + 415.0 + 496.0 + 700.0 - kindergeld_m
     assert zero_income_by_household["couple_children_8_14"] == pytest.approx(

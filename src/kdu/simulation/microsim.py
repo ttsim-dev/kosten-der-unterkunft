@@ -42,7 +42,7 @@ from kdu.config import (
     ANALYSIS_DATE,
     INCOME_GRID,
     MODEL_HOUSEHOLDS,
-    WOGG_SAFETY_MARKUP,
+    WOHNGELD_FALLBACK_MARKUP,
     MemberRole,
 )
 from kdu.simulation.kdu_cap import (
@@ -53,6 +53,13 @@ from kdu.simulation.kdu_cap import (
     round_currency_m,
     unterkunftskosten_m,
 )
+
+# Number of adults in a couple household.
+N_ADULTS_IN_COUPLE = 2
+
+# Column count of the cell frame once the Klimakomponente is present.
+N_CELL_COLUMNS_WITH_CLIMATE_COMPONENT = 4
+
 
 # The Rechtsstand every GETTSIM call is evaluated at (D2).
 POLICY_DATE = ANALYSIS_DATE.isoformat()
@@ -231,7 +238,9 @@ def simulation_cells(sample: pd.DataFrame, household_size: int) -> pd.DataFrame:
         .agg(
             wogg_base_cap_m=("wogg_base_cap", "first"),
             wogg_klima_cap_m=(
-                "wogg_climate_component" if len(columns) == 4 else "wogg_base_cap",
+                "wogg_climate_component"
+                if len(columns) == N_CELL_COLUMNS_WITH_CLIMATE_COMPONENT
+                else "wogg_base_cap",
                 "first",
             ),
             n_gemeinden=("wogg_base_cap", "size"),
@@ -240,8 +249,8 @@ def simulation_cells(sample: pd.DataFrame, household_size: int) -> pd.DataFrame:
     )
     # The counterfactual is the fallback the BSG prescribes where no schlüssiges
     # Konzept exists — the § 12 WoGG table plus the Sicherheitszuschlag (D15).
-    grouped["wogg_cap_m"] = grouped["wogg_base_cap_m"] * WOGG_SAFETY_MARKUP
-    if len(columns) == 4:
+    grouped["wogg_cap_m"] = grouped["wogg_base_cap_m"] * WOHNGELD_FALLBACK_MARKUP
+    if len(columns) == N_CELL_COLUMNS_WITH_CLIMATE_COMPONENT:
         grouped["wogg_klima_cap_m"] = (
             grouped["wogg_base_cap_m"] + grouped["wogg_klima_cap_m"]
         )
@@ -268,7 +277,6 @@ def simulation_cells(sample: pd.DataFrame, household_size: int) -> pd.DataFrame:
 def assign_cells(
     sample: pd.DataFrame,
     cells: pd.DataFrame,
-    household_size: int,
 ) -> pd.DataFrame:
     """Left-join every Gemeinde of the sample onto its simulation cell (D10).
 
@@ -531,8 +539,8 @@ def national_heating_costs_m(ba_wohnkosten: pd.DataFrame) -> HeatingAssumption:
     latest = kreise.query("reference_month == @reference_month")
     # `query` resolves an `@name` from the caller's locals only, so these
     # module-level constants have to be bound here first.
-    heizkosten_measure = BA_HEIZKOSTEN_MEASURE
-    stock_measure = BA_STOCK_MEASURE
+    heizkosten_measure = BA_HEIZKOSTEN_MEASURE  # noqa: F841  read by query()
+    stock_measure = BA_STOCK_MEASURE  # noqa: F841  read by query()
     values = latest.query("measure == @heizkosten_measure").set_index(
         ["region_code", "category"],
     )["value"]
@@ -655,7 +663,10 @@ def _demographics(age: int) -> dict[str, Any]:
 
 
 def _pension_inputs(entgeltpunkte: float, age: int) -> dict[str, Any]:
-    """Pension inputs putting the household at the Regelaltersgrenze with no Abschlag."""
+    """Pension inputs placing the household at the Regelaltersgrenze.
+
+    The Entgeltpunkte are chosen so that no Abschlag applies.
+    """
     return {
         "sozialversicherung__rente__bezieht_rente": True,
         "sozialversicherung__rente__entgeltpunkte": entgeltpunkte,
@@ -708,7 +719,7 @@ def _build_person_frame(
     frame["sozialversicherung__pflege__beitrag__hat_kinder"] = household.n_children > 0
     frame["lohnsteuer__steuerklasse"] = _steuerklasse(household, is_child)
     frame["einkommensteuer__gemeinsam_veranlagt"] = (
-        household.n_adults == 2
+        household.n_adults == N_ADULTS_IN_COUPLE
     ) & ~is_child
 
     _link_family(frame, household, slot, household_base, is_child)
@@ -743,7 +754,7 @@ def _steuerklasse(household: Any, is_child: NDArray[np.bool_]) -> NDArray[np.int
     """Lohnsteuerklasse: I single, II Alleinerziehend, IV/IV for a couple."""
     if household.is_single_parent:
         adult_class = 2
-    elif household.n_adults == 2:
+    elif household.n_adults == N_ADULTS_IN_COUPLE:
         adult_class = 4
     else:
         adult_class = 1
@@ -759,13 +770,13 @@ def _link_family(
 ) -> None:
     """Wire up the Ehepartner, Einstandspartner, Elternteil and Kindergeld links."""
     first_adult = household_base
-    if household.n_adults == 2:
+    if household.n_adults == N_ADULTS_IN_COUPLE:
         partner_slot = np.where(slot == 0, 1, 0)
         partner_id = household_base + partner_slot
         frame["familie__p_id_ehepartner"] = np.where(is_child, -1, partner_id)
         frame["bürgergeld__p_id_einstandspartner"] = np.where(is_child, -1, partner_id)
     frame["familie__p_id_elternteil_1"] = np.where(is_child, first_adult, -1)
-    if household.n_adults == 2:
+    if household.n_adults == N_ADULTS_IN_COUPLE:
         frame["familie__p_id_elternteil_2"] = np.where(
             is_child,
             household_base + 1,
@@ -894,7 +905,7 @@ def _derive_outcomes(joined: pd.DataFrame) -> pd.DataFrame:
 
 def _anspruch_matrix(
     results: pd.DataFrame,
-    scenario: str,
+    scenario: str,  # noqa: ARG001  read by query()
     n_cells: int,
     n_incomes: int,
 ) -> NDArray[np.float64]:
@@ -922,7 +933,7 @@ def _bisect(
     actual_bruttokaltmiete_m: NDArray[np.float64],
     heizkosten_m: float,
     wogg_cap_column: str,
-    scenario: str,
+    scenario: str,  # noqa: ARG001  read by query()
     lower: NDArray[np.float64],
     upper: NDArray[np.float64],
     tolerance: float,
