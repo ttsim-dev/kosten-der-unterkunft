@@ -17,7 +17,7 @@ where a Kreis has published no schlüssiges Konzept. The project reports six res
 one interactive map.
 
 The central finding: at household size one the median Gemeinde's cap sits 0.2 % above
-the fallback while the tenth and ninetieth percentiles sit 16.7 % below and 23.4 % above
+the fallback while the tenth and ninetieth percentiles sit 16.6 % below and 22.5 % above
 it, and the statutory Mietenstufe cannot repair that, because it accounts for 41 % of
 the variation in local caps while the residual variation still tracks actual market
 rents.

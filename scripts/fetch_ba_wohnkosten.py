@@ -14,7 +14,7 @@ the repository. What is committed instead is:
 - `data/ba_wohnkosten/ba_wohnkosten_<month>.csv` — the parsed long extract for the
   reference month, Kreise and Jobcenter
 - `data/ba_wohnkosten/ba_wohnkosten_annual_mean_<from>_<to>.csv` — the twelve-month
-  average per Kreis that §14.1 asks for as robustness
+  average per Kreis, carried as robustness against a single reference month
 - `data/ba_wohnkosten/ba_download_manifest.csv` — source URL, retrieval date, byte
   size and SHA-256 of every workbook that went into the two extracts, so any file
   can be fetched again and checked against what was parsed here
@@ -47,7 +47,7 @@ from _wohnkosten_workbooks import (
 )
 
 REFERENCE_MONTH = "202604"
-"""Latest month published at or before the 2026-08-31 Analysestichtag (D2)."""
+"""Latest month published at or before the 2026-08-31 Analysestichtag."""
 
 ANNUAL_MEAN_MONTHS: tuple[str, ...] = (
     "202505",

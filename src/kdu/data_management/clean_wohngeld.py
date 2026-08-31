@@ -12,10 +12,10 @@ Both are Bruttokaltmieten: § 9 WoGG excludes heating and hot water from the
 wohngeldrechtliche Miete, so the benchmark and the local caps are on the same
 rent concept.
 
-The only Gemeinde-level input is the statutory Mietenstufe of the Anlage zur
-Wohngeldverordnung. It is never derived from Kreis membership or population,
-and never read from a KdU document: a Wohngeldstelle applies the statutory
-classification whatever a Richtlinie says about it.
+The only Gemeinde-level input is the Mietenstufe of `wogg_mietstufe`. It is
+never derived from Kreis membership or population: it is the classification
+of the Anlage zur Wohngeldverordnung, except where a KdU document names a
+Mietenstufe of its own, which is then the value kept.
 """
 
 from dataclasses import dataclass
@@ -197,8 +197,8 @@ def load_wohngeld_parameters(path: Path) -> WohngeldParameters:
     )
 
 
-def read_statutory_mietenstufen(path: Path) -> pd.DataFrame:
-    """Read each Gemeinde's statutory Mietenstufe from the committed table.
+def read_mietenstufen(path: Path) -> pd.DataFrame:
+    """Read each Gemeinde's Mietenstufe from the committed table.
 
     Args:
         path: The `kdu_gemeinden.csv` to read.
@@ -209,7 +209,7 @@ def read_statutory_mietenstufen(path: Path) -> pd.DataFrame:
     """
     raw = pd.read_csv(
         path,
-        usecols=["ags_gemeinde", "wogv_mietstufe"],
+        usecols=["ags_gemeinde", "wogg_mietstufe"],
         dtype=str,
         engine="pyarrow",
     )
@@ -217,7 +217,7 @@ def read_statutory_mietenstufen(path: Path) -> pd.DataFrame:
         {
             "ags": raw["ags_gemeinde"].astype("string").str.zfill(AGS_LENGTH),
             "mietenstufe": pd.to_numeric(
-                raw["wogv_mietstufe"],
+                raw["wogg_mietstufe"],
                 errors="coerce",
             ).astype("Int64"),
         },

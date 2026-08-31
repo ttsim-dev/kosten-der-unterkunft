@@ -16,7 +16,7 @@ from kdu.data_management.clean_wohngeld import (
     build_hoechstbetrag_only,
     build_wohngeld_fallback,
     load_wohngeld_parameters,
-    read_statutory_mietenstufen,
+    read_mietenstufen,
 )
 
 
@@ -30,7 +30,7 @@ def task_clean_wohngeld(
 ) -> None:
     """Join the § 12 WoGG parameters onto every Gemeinde and household size."""
     parameters = load_wohngeld_parameters(wohngeld_parameters_file)
-    mietenstufen = read_statutory_mietenstufen(kdu_gemeinden_file)
+    mietenstufen = read_mietenstufen(kdu_gemeinden_file)
     caps = pd.read_parquet(kdu_caps_file)
 
     hoechstbetrag = build_hoechstbetrag_only(mietenstufen, parameters)

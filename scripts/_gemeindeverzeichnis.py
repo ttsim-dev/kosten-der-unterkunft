@@ -1,7 +1,7 @@
 """Gemeinde population and area from the Destatis Gemeindeverzeichnis.
 
-`gemeinde_lookup.arrow` carries no population and no area, so decision log D8
-adds a committed `data/gemeinde_population.arrow` built from the GV-ISys
+`gemeinde_lookup.arrow` carries no population and no area, so the committed
+`data/gemeinde_population.arrow` supplies both, built from the GV-ISys
 Jahresausgabe. This module holds the pure logic behind it — parsing the
 published workbook rows, reconciling the published Gebietsstand with the
 boundary file, and deriving the Gemeindegrößenklassen — while

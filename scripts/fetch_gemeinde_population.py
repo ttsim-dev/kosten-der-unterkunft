@@ -2,7 +2,7 @@
 
 Downloads two editions of the Destatis GV-ISys Gemeindeverzeichnis
 Jahresausgabe into `bld/` (gitignored), reconciles them against the AGS of
-`data/gemeinden.geo.json`, and writes the committed population table (D8).
+`data/gemeinden.geo.json`, and writes the committed population table.
 
 Re-run to regenerate:
 

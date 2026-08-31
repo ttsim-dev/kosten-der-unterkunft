@@ -1,8 +1,8 @@
-"""Parse the BA "Wohn- und Kostensituation" workbooks and derive the P1.2 outcomes.
+"""Parse the BA "Wohn- und Kostensituation" workbooks into the committed extract.
 
 The Statistik der Bundesagentur für Arbeit publishes one Excel workbook per region
 and reference month. Every workbook carries the same four data sheets; this module
-reads the two that restrict to rented accommodation (§14.1 point 3):
+reads the two that restrict to rented accommodation:
 
 - `Tabelle 1b HH Miete` — by size of the Haushaltsgemeinschaft
 - `Tabelle 2b BG Miete` — by Bedarfsgemeinschaft type
@@ -123,7 +123,7 @@ def load_ba_workbook(path: Path, identity: BaWorkbookIdentity) -> pd.DataFrame:
 def average_over_months(
     long_frames: Sequence[pd.DataFrame], label: str
 ) -> pd.DataFrame:
-    """Average one long frame per month into the §14.1 annual-average variant.
+    """Average one long frame per month into the annual-average variant.
 
     Args:
         long_frames: One long frame per reference month, same regions and measures.
@@ -200,7 +200,7 @@ def parse_ba_sheet(
 
 
 def add_bruttokaltmiete(long_frame: pd.DataFrame) -> pd.DataFrame:
-    """Append actual and recognised Bruttokaltmiete rows (§14.1 point 5).
+    """Append actual and recognised Bruttokaltmiete rows.
 
     Bruttokaltmiete is Unterkunftskosten plus kalte Betriebskosten, formed
     separately for the actual and the recognised cost concept and separately for
@@ -240,9 +240,9 @@ def spread_categories(long_frame: pd.DataFrame, breakdown: str) -> pd.DataFrame:
     """Reshape one breakdown of the long frame into the committed file layout.
 
     The committed extract puts the categories of a breakdown side by side, so the
-    region keys are written once per measure rather than once per value. D14 keeps
-    the *canonical* table long; committed raw inputs may be wide, as
-    `data/kdu_gemeinden.csv` already is.
+    region keys are written once per measure rather than once per value. The
+    canonical tables in `bld/data/` stay long; a committed raw input may be wide,
+    as `data/kdu_gemeinden.csv` already is.
 
     Args:
         long_frame: Long frame as returned by `load_ba_workbook`.
@@ -277,9 +277,9 @@ def spread_categories(long_frame: pd.DataFrame, breakdown: str) -> pd.DataFrame:
 def fail_if_measure_names_suggest_payment(measures: pd.Series) -> None:
     """Raise when a measure name blurs recognised costs into disbursed benefits.
 
-    §14.1 point 6 exists because the BA itself warns that benefits actually paid
-    fall short of recognised Wohnkosten once income is set off. The source reports
-    no payment at all, so a name implying one would be false on its face.
+    The BA itself warns that benefits actually paid fall short of recognised
+    Wohnkosten once income is set off. The source reports no payment at all, so a
+    name implying one would be false on its face.
 
     Args:
         measures: Measure names to check.

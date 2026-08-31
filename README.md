@@ -16,7 +16,7 @@ therefore the legally correct comparator rather than an arbitrary one.
 
 - The fallback is **right on average and wrong locally**: at household size one the
   median Gemeinde's cap sits 0.2% above it, while the tenth and ninetieth percentiles
-  sit 16.7% below and 23.4% above.
+  sit 16.6% below and 22.5% above.
 - The statutory **Mietenstufe cannot repair this**. It accounts for about 41% of the
   variation in local caps — less than knowing the Bundesland alone accounts for.
 - The variation it misses is **not administrative noise**. Within a Mietenstufe, where

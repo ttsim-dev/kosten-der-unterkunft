@@ -1,1 +1,1 @@
-"""Harmonisation, population, and crosswalk tasks (P0.1)."""
+"""Harmonisation, population, and crosswalk tasks."""
