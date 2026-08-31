@@ -24,7 +24,6 @@ def task_clean_wohngeld(
     parameters = load_wohngeld_parameters(wohngeld_parameters_file)
     mietenstufen = read_mietenstufen(kdu_gemeinden_file)
 
-    wohngeld_fallback_file.parent.mkdir(parents=True, exist_ok=True)
     build_wohngeld_fallback(mietenstufen, parameters).to_parquet(
         wohngeld_fallback_file,
         index=False,

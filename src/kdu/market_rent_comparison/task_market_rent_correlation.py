@@ -36,6 +36,5 @@ def task_market_rent_correlation(
     table = correlation_table(frame)
     figure = market_rent_correlation_figure(table)
 
-    table_file.parent.mkdir(parents=True, exist_ok=True)
     table.to_csv(table_file, index=False)
     figure.write_html(figure_file, include_plotlyjs="cdn")

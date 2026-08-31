@@ -39,7 +39,6 @@ def task_eligibility(
     )
     thresholds = exit_threshold_by_gemeinde(sample, heating)
 
-    gemeinde_file.parent.mkdir(parents=True, exist_ok=True)
     thresholds.to_parquet(gemeinde_file, index=False)
     summarise_exit_thresholds(thresholds).to_csv(table_file, index=False)
     plot_exit_threshold_distribution(thresholds).write_html(

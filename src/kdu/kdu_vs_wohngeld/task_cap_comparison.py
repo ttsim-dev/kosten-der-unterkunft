@@ -49,7 +49,6 @@ def task_cap_comparison(
         ignore_index=True,
     )
 
-    distribution_file.parent.mkdir(parents=True, exist_ok=True)
     plot_cap_ratio_distribution(weighted).write_html(distribution_file)
     plot_cap_ratio_spread_distribution(spread).write_html(spread_file)
     table.to_csv(table_file, index=False)

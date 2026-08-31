@@ -20,5 +20,4 @@ def task_clean_zensus_rents(
 ) -> None:
     """Parse the committed Zensus extract into one row per Gemeinde."""
     rents = build_zensus_rents(read_zensus_extract(extract_file))
-    zensus_rents_file.parent.mkdir(parents=True, exist_ok=True)
     rents.to_parquet(zensus_rents_file, index=False)

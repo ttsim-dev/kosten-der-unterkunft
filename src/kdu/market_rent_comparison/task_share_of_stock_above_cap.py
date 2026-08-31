@@ -44,7 +44,6 @@ def task_share_of_stock_above_cap(
     summary = summarise_shares(gemeinde_shares)
     figure = share_of_stock_above_cap_figure(gemeinde_shares)
 
-    gemeinde_file.parent.mkdir(parents=True, exist_ok=True)
     gemeinde_shares.to_parquet(gemeinde_file, index=False)
     summary.to_csv(table_file, index=False)
     figure.write_html(figure_file, include_plotlyjs="cdn")

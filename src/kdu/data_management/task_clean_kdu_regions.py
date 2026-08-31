@@ -20,6 +20,5 @@ def task_clean_kdu_regions(
 ) -> None:
     """Reshape the committed wide table into the cap and document tables."""
     wide = read_kdu_gemeinden(kdu_gemeinden_file)
-    kdu_caps_file.parent.mkdir(parents=True, exist_ok=True)
     build_kdu_caps(wide).to_parquet(kdu_caps_file, index=False)
     build_kdu_sources(wide).to_parquet(kdu_sources_file, index=False)

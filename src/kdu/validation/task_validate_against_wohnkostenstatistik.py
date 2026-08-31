@@ -36,5 +36,4 @@ def task_validate_against_wohnkostenstatistik(
         pd.read_parquet(wohnkostenstatistik_file),
         market_pressure,
     )
-    validation_file.parent.mkdir(parents=True, exist_ok=True)
     table.to_csv(validation_file, index=False)

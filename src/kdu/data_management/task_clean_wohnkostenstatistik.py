@@ -25,5 +25,4 @@ def task_clean_wohnkostenstatistik(
 ) -> None:
     """Reshape the committed extract into one row per Jobcenter and household size."""
     statistic = build_wohnkostenstatistik(read_committed_extract(extract_file))
-    wohnkostenstatistik_file.parent.mkdir(parents=True, exist_ok=True)
     statistic.to_parquet(wohnkostenstatistik_file, index=False)

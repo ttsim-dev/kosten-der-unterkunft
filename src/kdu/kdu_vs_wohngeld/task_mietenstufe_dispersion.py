@@ -33,7 +33,6 @@ def task_mietenstufe_dispersion(
     shares = variance_shares(frame)
     dispersion = dispersion_within_mietenstufe(frame)
 
-    figure_file.parent.mkdir(parents=True, exist_ok=True)
     plot_mietenstufe_dispersion(frame, shares).write_html(figure_file)
     pd.concat(
         [

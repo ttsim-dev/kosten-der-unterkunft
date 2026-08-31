@@ -23,5 +23,4 @@ def task_clean_gemeinden(
         load_lookup(lookup_file),
         load_population(population_file),
     )
-    gemeinden_file.parent.mkdir(parents=True, exist_ok=True)
     gemeinden.to_parquet(gemeinden_file, index=False)

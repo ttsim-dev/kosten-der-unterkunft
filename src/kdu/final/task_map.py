@@ -101,7 +101,6 @@ def _write_map(
         initial_household_size=INITIAL_HOUSEHOLD_SIZE,
         vintage=vintage,
     )
-    path.parent.mkdir(parents=True, exist_ok=True)
     figure.write_html(path, include_plotlyjs=PLOTLY_SOURCE, post_script=script)
 
 
