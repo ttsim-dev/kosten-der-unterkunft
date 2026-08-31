@@ -1,300 +1,202 @@
-"""Define the measures available in the Gemeinde choropleth."""
+"""The seven measures the Gemeinde choropleth offers.
+
+Each measure names one column of the long map frame keyed `fid` by
+`household_size`. Six of the seven vary with household size and are read at
+whichever size the map's household-size control currently selects; the
+Mietenstufe is a property of the Gemeinde alone.
+
+Every label, unit and caption is German: the map's readers are German policy
+practitioners and the quantities are legal terms of art.
+"""
 
 from dataclasses import dataclass
 
 import pandas as pd
 
+# Quantile bounds of the displayed colour range, so that the most extreme 2 % of
+# Gemeinden at either end cannot compress the scale for the remaining 96 %.
+LOWER_DISPLAY_QUANTILE = 0.02
+UPPER_DISPLAY_QUANTILE = 0.98
+
 
 @dataclass(frozen=True)
 class MeasureSpec:
-    """Describe one selectable map measure."""
+    """One selectable measure of the choropleth."""
 
     key: str
-    """Short stable identifier."""
+    """Stable identifier, also the filename fragment of the standalone export."""
     column: str
-    """Column name in the completed KdU CSV."""
+    """Column of the map frame holding the value."""
     label: str
-    """German text used in the dropdown and figure title."""
+    """German text shown in the measure control."""
     unit: str
-    """Display unit: `€`, `%`, `m²`, `€/m²`, or empty for Mietstufe."""
+    """Display unit: `€/Monat`, `€/m²`, `m²`, `%`, or empty for the Mietenstufe."""
     hover_format: str
-    """Plotly d3 format applied to the displayed value."""
-    is_ordinal: bool
-    """Whether the measure is the ordinal Mietstufe scale."""
-    is_diverging: bool = False
-    """Mark a measure whose natural midpoint is zero."""
-    headline: str = ""
-    """Figure title naming what the colour actually shows. Falls back to `label`."""
-    context: str = ""
-    """Second title line: legal basis, unit, and how to read the scale."""
-    counterpart_column: str = ""
-    """Column proving a blank Gemeinde is regulated under the other rent concept."""
-    counterpart_text: str = ""
-    """How to describe those Gemeinden in the coverage breakdown."""
-    colourbar_title: str = ""
-    """Colour bar caption. Falls back to `unit`, then to `Mietstufe`."""
+    """Plotly d3 number format applied to the displayed value."""
+    headline: str
+    """First title line, naming what the colour shows."""
+    context: str
+    """Second title line: legal basis and unit."""
+    varies_by_household_size: bool = True
+    """Whether the value is read at the selected household size."""
+    is_ordinal: bool = False
+    """Whether the measure is the ordinal Mietenstufe scale 1 to 7."""
+    diverging_midpoint: float | None = None
+    """Value the diverging colour scale centres on, or `None` for a sequential scale."""
     reflects_kdu_cap: bool = False
-    """Whether the value is a KdU rent cap a Härtefallzuschlag would raise.
+    """Whether a Härtefallzuschlag would raise this value.
 
-    Drives the hatch overlay. False for the Mietstufe, the Wohngeld-Höchstbeträge
-    and the Wohnflächen, none of which a rent top-up changes.
+    Selects the hatch overlay and the Sicherheitszuschlag footnote. False for the
+    Mietenstufe, the Wohngeld-Höchstbeträge and the Wohnflächen, none of which a
+    rent surcharge changes.
     """
 
 
-_SGB_BASIS = "Kosten der Unterkunft nach § 22 SGB II / § 35 SGB XII"
+_SGB_BASIS = "Kosten der Unterkunft nach § 22 SGB II und § 35 SGB XII"
 
-_CONTEXT_MIETSTUFE = "Stufe 1-7 · Grundlage der Wohngeld-Höchstbeträge nach § 12 WoGG"
-
-_CONTEXT_BRUTTO = f"{_SGB_BASIS} · €/Monat, mit kalten Nebenkosten, ohne Heizkosten"
-
-_CONTEXT_BRUTTO_SQM = (
-    f"{_SGB_BASIS} · € je m² und Monat, mit kalten Nebenkosten, ohne Heizkosten"
-)
-
-_CONTEXT_NETTO = f"{_SGB_BASIS} · €/Monat, ohne Nebenkosten und ohne Heizkosten"
-
-_CONTEXT_FLAECHE = f"{_SGB_BASIS} · m²"
-
-_CONTEXT_WOGG = (
-    "§ 12 Abs. 1 WoGG, Anlage 1 (Fassung 1. Januar 2025) · €/Monat, Bruttokaltmiete"
-)
-
-_CONTEXT_VERGLEICH = (
-    "In % des Wohngeld-Höchstbetrags nach § 12 WoGG · 0 % = Obergrenze entspricht dem "
-    "Höchstbetrag, positiv = es wird mehr anerkannt"
+_WOHNGELD_BASIS = (
+    "§ 12 Absatz 1 Wohngeldgesetz, Anlage 1, zuzüglich zehn Prozent "
+    "Sicherheitszuschlag (Bundessozialgericht B 4 AS 87/12 R)"
 )
 
 MEASURES: tuple[MeasureSpec, ...] = (
     MeasureSpec(
-        key="wogg_mietstufe",
-        column="wogg_mietstufe",
-        label="Mietstufe · Stufe 1-7",
+        key="mietenstufe",
+        column="mietenstufe",
+        label="Mietenstufe",
         unit="",
         hover_format="d",
+        headline="Mietenstufe der Gemeinde",
+        context=(
+            "Stufe 1 bis 7 · Grundlage der Wohngeld-Höchstbeträge nach "
+            "§ 12 Wohngeldgesetz"
+        ),
+        varies_by_household_size=False,
         is_ordinal=True,
-        headline="Mietstufe der Gemeinde",
-        context=_CONTEXT_MIETSTUFE,
-        colourbar_title="Mietstufe",
     ),
     MeasureSpec(
-        key="max_bruttokaltmiete_eur_1p",
-        column="max_bruttokaltmiete_eur_1p",
-        reflects_kdu_cap=True,
-        label="Obergrenze · Bruttokaltmiete (mit kalten Nebenkosten), 1 Person",
-        unit="€",
+        key="kdu_cap",
+        column="kdu_cap",
+        label="Örtliche Mietobergrenze",
+        unit="€/Monat",
         hover_format=",.0f",
-        is_ordinal=False,
-        headline="Höchstens anerkannte Bruttokaltmiete, 1-Personen-Haushalt",
-        context=_CONTEXT_BRUTTO,
-        counterpart_column="max_nettokaltmiete_eur_1p",
-        counterpart_text="als Nettokaltmiete geregelt",
-        colourbar_title="€/Monat",
+        headline="Höchstens anerkannte Bruttokaltmiete",
+        context=(
+            f"{_SGB_BASIS} · Euro je Monat, mit kalten Betriebskosten, ohne Heizkosten"
+        ),
+        reflects_kdu_cap=True,
     ),
     MeasureSpec(
-        key="max_bruttokaltmiete_eur_2p",
-        column="max_bruttokaltmiete_eur_2p",
-        reflects_kdu_cap=True,
-        label="Obergrenze · Bruttokaltmiete (mit kalten Nebenkosten), 2 Personen",
-        unit="€",
-        hover_format=",.0f",
-        is_ordinal=False,
-        headline="Höchstens anerkannte Bruttokaltmiete, 2-Personen-Haushalt",
-        context=_CONTEXT_BRUTTO,
-        counterpart_column="max_nettokaltmiete_eur_1p",
-        counterpart_text="als Nettokaltmiete geregelt",
-        colourbar_title="€/Monat",
-    ),
-    MeasureSpec(
-        key="max_bruttokaltmiete_eur_4p",
-        column="max_bruttokaltmiete_eur_4p",
-        reflects_kdu_cap=True,
-        label="Obergrenze · Bruttokaltmiete (mit kalten Nebenkosten), 4 Personen",
-        unit="€",
-        hover_format=",.0f",
-        is_ordinal=False,
-        headline="Höchstens anerkannte Bruttokaltmiete, 4-Personen-Haushalt",
-        context=_CONTEXT_BRUTTO,
-        counterpart_column="max_nettokaltmiete_eur_1p",
-        counterpart_text="als Nettokaltmiete geregelt",
-        colourbar_title="€/Monat",
-    ),
-    MeasureSpec(
-        key="max_bruttokaltmiete_eur_sqm",
-        column="max_bruttokaltmiete_eur_sqm",
-        reflects_kdu_cap=True,
-        label="Obergrenze · Bruttokaltmiete je m²",
+        key="kdu_cap_per_sqm",
+        column="kdu_cap_per_sqm",
+        label="Örtliche Mietobergrenze je Quadratmeter",
         unit="€/m²",
         hover_format=",.2f",
-        is_ordinal=False,
-        headline="Höchstens anerkannte Bruttokaltmiete je m²",
-        context=_CONTEXT_BRUTTO_SQM,
-        colourbar_title="€/m² und Monat",
-    ),
-    MeasureSpec(
-        key="max_nettokaltmiete_eur_1p",
-        column="max_nettokaltmiete_eur_1p",
+        headline="Höchstens anerkannte Bruttokaltmiete je Quadratmeter",
+        context=(
+            f"{_SGB_BASIS} · Euro je Quadratmeter und Monat, bezogen auf die "
+            "angemessene Wohnfläche"
+        ),
         reflects_kdu_cap=True,
-        label="Obergrenze · Nettokaltmiete (ohne Nebenkosten), 1 Person",
-        unit="€",
-        hover_format=",.0f",
-        is_ordinal=False,
-        headline="Höchstens anerkannte Nettokaltmiete, 1-Personen-Haushalt",
-        context=_CONTEXT_NETTO,
-        counterpart_column="max_bruttokaltmiete_eur_1p",
-        counterpart_text="als Bruttokaltmiete geregelt",
-        colourbar_title="€/Monat",
     ),
     MeasureSpec(
-        key="max_nettokaltmiete_eur_4p",
-        column="max_nettokaltmiete_eur_4p",
+        key="wohngeld_fallback_cap",
+        column="wohngeld_fallback_cap",
+        label="Wohngeld-Obergrenze (Höchstbetrag zuzüglich zehn Prozent)",
+        unit="€/Monat",
+        hover_format=",.0f",
+        headline="Wohngeld-Höchstbetrag zuzüglich Sicherheitszuschlag",
+        context=f"{_WOHNGELD_BASIS} · Euro je Monat",
+    ),
+    MeasureSpec(
+        key="cap_ratio",
+        column="cap_ratio",
+        label="Örtliche Mietobergrenze im Verhältnis zur Wohngeld-Obergrenze",
+        unit="",
+        hover_format=",.2f",
+        headline=("Örtliche Mietobergrenze im Verhältnis zur Wohngeld-Obergrenze"),
+        context=(
+            "1,00 = die örtliche Obergrenze entspricht dem Wohngeld-Höchstbetrag "
+            "zuzüglich zehn Prozent · größer als 1,00 = örtlich wird mehr anerkannt"
+        ),
+        diverging_midpoint=1.0,
         reflects_kdu_cap=True,
-        label="Obergrenze · Nettokaltmiete (ohne Nebenkosten), 4 Personen",
-        unit="€",
-        hover_format=",.0f",
-        is_ordinal=False,
-        headline="Höchstens anerkannte Nettokaltmiete, 4-Personen-Haushalt",
-        context=_CONTEXT_NETTO,
-        counterpart_column="max_bruttokaltmiete_eur_1p",
-        counterpart_text="als Bruttokaltmiete geregelt",
-        colourbar_title="€/Monat",
     ),
     MeasureSpec(
-        key="max_wohnflaeche_sqm_1p",
-        column="max_wohnflaeche_sqm_1p",
-        label="Wohnfläche · angemessen, 1 Person",
+        key="max_wohnflaeche",
+        column="max_wohnflaeche",
+        label="Angemessene Wohnfläche",
         unit="m²",
         hover_format=",.0f",
-        is_ordinal=False,
-        headline="Angemessene Wohnfläche, 1-Personen-Haushalt",
-        context=_CONTEXT_FLAECHE,
-        colourbar_title="m²",
+        headline="Angemessene Wohnfläche",
+        context=f"{_SGB_BASIS} · Quadratmeter",
     ),
     MeasureSpec(
-        key="max_wohnflaeche_sqm_4p",
-        column="max_wohnflaeche_sqm_4p",
-        label="Wohnfläche · angemessen, 4 Personen",
-        unit="m²",
-        hover_format=",.0f",
-        is_ordinal=False,
-        headline="Angemessene Wohnfläche, 4-Personen-Haushalt",
-        context=_CONTEXT_FLAECHE,
-        colourbar_title="m²",
-    ),
-    MeasureSpec(
-        key="wogg_hoechstbetrag_eur_1p",
-        column="wogg_hoechstbetrag_eur_1p",
-        label="Wohngeld · Höchstbetrag § 12 WoGG, 1 Person",
-        unit="€",
-        hover_format=",.0f",
-        is_ordinal=False,
-        headline="Wohngeld-Höchstbetrag für Miete, 1-Personen-Haushalt",
-        context=_CONTEXT_WOGG,
-        colourbar_title="€/Monat",
-    ),
-    MeasureSpec(
-        key="wogg_hoechstbetrag_eur_2p",
-        column="wogg_hoechstbetrag_eur_2p",
-        label="Wohngeld · Höchstbetrag § 12 WoGG, 2 Personen",
-        unit="€",
-        hover_format=",.0f",
-        is_ordinal=False,
-        headline="Wohngeld-Höchstbetrag für Miete, 2-Personen-Haushalt",
-        context=_CONTEXT_WOGG,
-        colourbar_title="€/Monat",
-    ),
-    MeasureSpec(
-        key="wogg_hoechstbetrag_eur_4p",
-        column="wogg_hoechstbetrag_eur_4p",
-        label="Wohngeld · Höchstbetrag § 12 WoGG, 4 Personen",
-        unit="€",
-        hover_format=",.0f",
-        is_ordinal=False,
-        headline="Wohngeld-Höchstbetrag für Miete, 4-Personen-Haushalt",
-        context=_CONTEXT_WOGG,
-        colourbar_title="€/Monat",
-    ),
-    MeasureSpec(
-        key="kdu_vs_wogg_pct_1p",
-        column="kdu_vs_wogg_pct_1p",
-        reflects_kdu_cap=True,
-        label="Vergleich · Abweichung vom Wohngeld-Höchstbetrag in %, 1 Person",
+        key="share_of_stock_above_cap",
+        column="share_of_stock_above_cap",
+        label="Anteil der Mietwohnungen oberhalb der Obergrenze",
         unit="%",
-        hover_format="+,.1f",
-        is_ordinal=False,
-        is_diverging=True,
-        headline=(
-            "Abweichung der Mietobergrenze vom Wohngeld-Höchstbetrag, 1-Personen-"
-            "Haushalt"
+        hover_format=",.1f",
+        headline="Anteil der örtlichen Mietwohnungen oberhalb der Mietobergrenze",
+        context=(
+            "Zensus 2022, Bestandsmieten nettokalt je Quadratmeter, umgerechnet "
+            "auf Bruttokaltmiete · Prozent der vermieteten Wohnungen"
         ),
-        context=_CONTEXT_VERGLEICH,
-        counterpart_column="max_nettokaltmiete_eur_1p",
-        counterpart_text="als Nettokaltmiete geregelt",
-        colourbar_title="% vom Wohngeld-Höchstbetrag",
-    ),
-    MeasureSpec(
-        key="kdu_vs_wogg_pct_2p",
-        column="kdu_vs_wogg_pct_2p",
         reflects_kdu_cap=True,
-        label="Vergleich · Abweichung vom Wohngeld-Höchstbetrag in %, 2 Personen",
-        unit="%",
-        hover_format="+,.1f",
-        is_ordinal=False,
-        is_diverging=True,
-        headline=(
-            "Abweichung der Mietobergrenze vom Wohngeld-Höchstbetrag, 2-Personen-"
-            "Haushalt"
-        ),
-        context=_CONTEXT_VERGLEICH,
-        counterpart_column="max_nettokaltmiete_eur_1p",
-        counterpart_text="als Nettokaltmiete geregelt",
-        colourbar_title="% vom Wohngeld-Höchstbetrag",
-    ),
-    MeasureSpec(
-        key="kdu_vs_wogg_pct_4p",
-        column="kdu_vs_wogg_pct_4p",
-        reflects_kdu_cap=True,
-        label="Vergleich · Abweichung vom Wohngeld-Höchstbetrag in %, 4 Personen",
-        unit="%",
-        hover_format="+,.1f",
-        is_ordinal=False,
-        is_diverging=True,
-        headline=(
-            "Abweichung der Mietobergrenze vom Wohngeld-Höchstbetrag, 4-Personen-"
-            "Haushalt"
-        ),
-        context=_CONTEXT_VERGLEICH,
-        counterpart_column="max_nettokaltmiete_eur_1p",
-        counterpart_text="als Nettokaltmiete geregelt",
-        colourbar_title="% vom Wohngeld-Höchstbetrag",
     ),
 )
+
+
+def get_measure(key: str) -> MeasureSpec:
+    """Return the measure registered under `key`.
+
+    Args:
+        key: Stable identifier of a measure in `MEASURES`.
+
+    Returns:
+        The matching specification.
+
+    Raises:
+        ValueError: If no measure carries that key.
+    """
+    for spec in MEASURES:
+        if spec.key == key:
+            return spec
+    registered = ", ".join(spec.key for spec in MEASURES)
+    msg = f"Unknown measure {key!r}; registered measures are {registered}"
+    raise ValueError(msg)
 
 
 def compute_colour_range(
     values: pd.Series,
     spec: MeasureSpec,
 ) -> tuple[float, float]:
-    """Compute the display range for a measure.
+    """Compute the displayed colour range of a measure.
+
+    The Mietenstufe spans its statutory scale. A diverging measure is given a
+    range symmetric around its midpoint, so that equal departures in either
+    direction read as equally strong. Every other measure spans its 2nd to 98th
+    percentile.
 
     Args:
-        values: Measure values, including any missing observations.
-        spec: Display specification for the measure.
+        values: Measure values, missing observations included.
+        spec: Display specification of the measure.
 
     Returns:
-        The fixed ordinal range, a symmetric diverging range, or the 2nd and 98th
-        percentiles.
+        The lower and upper bound of the colour range.
 
     Raises:
-        ValueError: If `values` contains no non-missing observations.
+        ValueError: If `values` holds no observation.
     """
     observed = values.dropna()
     if observed.empty:
-        msg = f"Measure '{spec.key}' has no non-missing values."
+        msg = f"Measure {spec.key!r} has no observed values."
         raise ValueError(msg)
     if spec.is_ordinal:
-        return (1, 7)
-    lower, upper = observed.quantile([0.02, 0.98])
-    if spec.is_diverging:
-        limit = max(abs(float(lower)), abs(float(upper)))
-        return (-limit, limit)
+        return (1.0, 7.0)
+    lower, upper = observed.quantile([LOWER_DISPLAY_QUANTILE, UPPER_DISPLAY_QUANTILE])
+    if spec.diverging_midpoint is not None:
+        midpoint = spec.diverging_midpoint
+        limit = max(abs(float(lower) - midpoint), abs(float(upper) - midpoint))
+        return (midpoint - limit, midpoint + limit)
     return (float(lower), float(upper))

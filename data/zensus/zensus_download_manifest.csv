@@ -1,0 +1,2 @@
+source,sheet,source_url,retrieved_date,n_bytes,sha256
+"Statistisches Bundesamt, Zensus 2022, Regionaltabelle Gebäude und Wohnungen",CSV-Wohnungen,https://www.destatis.de/static/DE/zensus/gitterdaten/Regionaltabelle_Gebaeude_Wohnungen.xlsx,2026-08-27,21451209,82da8578a4657e20752b436a756ed27846c77f96e3f7333bdea7f4fe29a8b551

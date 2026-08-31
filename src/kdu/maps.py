@@ -1,4 +1,11 @@
-"""Build a measure-selectable Gemeinde choropleth from KdU data."""
+"""Join the cleaned tables to the Gemeinde boundaries and draw the choropleth.
+
+The map frame is long, keyed `fid` by `household_size`, so that the household
+size is a dimension of the data rather than part of a measure's name. The
+figure carries one grey base layer and one measure layer; which measure and
+which household size the measure layer shows is set by the controls built in
+{mod}`kdu.final.map_controls`.
+"""
 
 from dataclasses import dataclass
 from typing import Any
@@ -9,167 +16,242 @@ import plotly.graph_objects as go
 from kdu.hatching import build_hatch_geojson
 from kdu.measures import MEASURES, MeasureSpec, compute_colour_range
 
-GERMANY_CENTER = {"lat": 51.2, "lon": 10.4}
+# The centre and the zoom level the map opens at.
+GERMANY_CENTRE = {"lat": 51.2, "lon": 10.4}
+GERMANY_ZOOM = 4.7
+
+# German number formatting: decimal comma, thousands separator point.
+GERMAN_SEPARATORS = ",."
+
 HAERTEFALL_COLUMN = "haertefall_regelung"
-HAERTEFALL_HOVER = "<br>Härtefallregelung: 10 % über dem Richtwert möglich"
-HAERTEFALL_NOTE = "Schraffur: eigene Härtefallregelung (Berlin: +10 %, nicht enthalten)"
-SICHERHEITSZUSCHLAG_NOTE = (
-    "Ohne schlüssiges Konzept: § 12 WoGG + 10 % Sicherheitszuschlag "
-    "(BSG B 4 AS 87/12 R)"
+HAERTEFALL_HOVER = "<br>Härtefallregelung: zehn Prozent über dem Richtwert möglich"
+HAERTEFALL_NOTE = (
+    "Schraffur: eigene Härtefallregelung (Berlin: zehn Prozent, nicht enthalten)"
 )
+SICHERHEITSZUSCHLAG_NOTE = (
+    "Ohne schlüssiges Konzept gilt der Wohngeld-Höchstbetrag zuzüglich zehn Prozent "
+    "Sicherheitszuschlag (Bundessozialgericht B 4 AS 87/12 R)"
+)
+
+GEMEINDEFREIES_GEBIET = "Gemeindefreies Gebiet"
+
+# The market rent comparison names the share above the local cap this, as a
+# fraction of the rented stock.
+SHARE_ABOVE_CAP_COLUMN = "share_above_local_kdu_cap"
+PERCENT = 100
+
 AGS_LENGTH = 8
 SOURCE_AGS_LENGTH = 12
 
+# The colours of the ordinal Mietenstufe scale, one per statutory step.
+_MIETENSTUFE_COLOURS = (
+    "#440154",
+    "#443983",
+    "#31688e",
+    "#21918c",
+    "#35b779",
+    "#90d743",
+    "#fde725",
+)
+
 
 def build_map_frame(
+    *,
     geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
+    kdu_caps: pd.DataFrame,
+    wohngeld_fallback: pd.DataFrame,
+    gemeinden: pd.DataFrame,
+    gemeinde_types: pd.DataFrame,
+    share_of_stock_above_cap: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    """Join KdU measures and municipality metadata to features by AGS.
+    """Join every measure to the boundary features, one row per feature and size.
 
     Args:
-        geojson: Gemeinde feature collection carrying `fid` and `gem_code`.
-        kdu: Completed KdU data keyed by eight-digit `ags_gemeinde`.
-        lookup: Gemeinde lookup containing `ags`, `kreis`, and `gem_type`.
+        geojson: Gemeinde feature collection whose features carry `fid` and
+            `gem_code`.
+        kdu_caps: Local caps keyed `ags` by `household_size`.
+        wohngeld_fallback: Statutory benchmark keyed `ags` by `household_size`.
+        gemeinden: Gemeinde attributes keyed `ags`.
+        gemeinde_types: Frame with `ags` and `gem_type`, marking the
+            gemeindefreie Gebiete no KdU document applies to.
+        share_of_stock_above_cap: Share of the local rented stock priced above
+            the cap, keyed `ags` by `household_size`. Absent when that measure
+            has not been computed, in which case its column is all missing.
 
     Returns:
-        One row per GeoJSON feature, preserving feature order.
+        One row per boundary feature and household size, sorted by `fid` then
+        `household_size`.
 
     Raises:
-        ValueError: If a GeoJSON feature has no corresponding KdU row.
+        ValueError: If a join drops or duplicates rows, or if a feature has no
+            cap row.
     """
-    features = pd.DataFrame(
-        {
-            "fid": [feature["properties"]["fid"] for feature in geojson["features"]],
-            "ags": [
-                _derive_ags_8(feature["properties"]["gem_code"])
-                for feature in geojson["features"]
-            ],
-            "name": [
-                feature["properties"].get("gem_name") for feature in geojson["features"]
-            ],
-        },
+    features = _build_feature_table(geojson)
+    measures = _join_measure_tables(
+        kdu_caps=kdu_caps,
+        wohngeld_fallback=wohngeld_fallback,
+        share_of_stock_above_cap=share_of_stock_above_cap,
     )
-    measure_columns = [spec.column for spec in MEASURES]
-    kdu_measures = pd.DataFrame(index=kdu.index)
-    kdu_measures["ags"] = kdu["ags_gemeinde"].map(_normalise_ags_8)
-    for column in measure_columns:
-        kdu_measures[column] = pd.to_numeric(kdu[column], errors="coerce").astype(float)
-    kdu_measures[HAERTEFALL_COLUMN] = _mark_haertefall(kdu)
 
-    joined = features.merge(
-        kdu_measures,
-        on="ags",
-        how="left",
-        sort=False,
-        validate="one_to_one",
-        indicator="_kdu_join",
-    )
-    _fail_if_kdu_rows_are_missing(joined)
+    frame = features.merge(measures, on="ags", how="left", sort=False)
+    _fail_if_features_lack_measures(frame)
 
-    lookup_names = pd.DataFrame(index=lookup.index)
-    lookup_names["ags"] = lookup["ags"].map(_derive_ags_8)
-    lookup_names["kreis"] = lookup["kreis"]
-    lookup_names["gem_type"] = lookup["gem_type"]
-    joined = joined.merge(
-        lookup_names,
-        on="ags",
-        how="left",
-        sort=False,
-        validate="one_to_one",
-    )
+    attributes = gemeinden.loc[:, ["ags", "district_name"]]
+    frame = _merge_without_duplicating(frame, attributes, on="ags")
+    types = gemeinde_types.loc[:, ["ags", "gem_type"]]
+    frame = _merge_without_duplicating(frame, types, on="ags")
+
     columns = [
         "fid",
         "ags",
-        "name",
-        "kreis",
+        "household_size",
+        "municipality_name",
+        "district_name",
         "gem_type",
         HAERTEFALL_COLUMN,
-        *measure_columns,
+        *[spec.column for spec in MEASURES],
     ]
-    return joined.loc[:, columns].reset_index(drop=True)
+    return (
+        frame.loc[:, columns]
+        .sort_values(["fid", "household_size"])
+        .reset_index(drop=True)
+    )
+
+
+@dataclass(frozen=True)
+class MeasureDisplay:
+    """The values, colour range, title and colour bar of one displayed measure."""
+
+    measure_values: list[float | None]
+    """Measure values in feature order."""
+    lower: float
+    """Lower bound of the colour range."""
+    upper: float
+    """Upper bound of the colour range."""
+    title: str
+    """Two-line figure title."""
+    colourbar: dict[str, Any]
+    """Colour bar specification."""
+
+
+def build_measure_display(
+    *,
+    frame: pd.DataFrame,
+    spec: MeasureSpec,
+    household_size: int,
+    vintage: str = "",
+) -> MeasureDisplay:
+    """Assemble the values, colour range, title and colour bar of one view.
+
+    Args:
+        frame: Map frame returned by `build_map_frame`.
+        spec: Measure to display.
+        household_size: Household size at which to read a size-dependent measure.
+        vintage: Range of document effective dates shown in the subtitle.
+
+    Returns:
+        The display specification of that measure at that household size.
+    """
+    view = _select_household_size(frame=frame, spec=spec, household_size=household_size)
+    lower, upper = compute_colour_range(view[spec.column], spec)
+    return MeasureDisplay(
+        measure_values=[
+            None if pd.isna(value) else float(value) for value in view[spec.column]
+        ],
+        lower=lower,
+        upper=upper,
+        title=_build_title(
+            view=view,
+            spec=spec,
+            household_size=household_size,
+            vintage=vintage,
+        ),
+        colourbar=_build_colourbar(spec=spec, lower=lower, upper=upper),
+    )
 
 
 def build_choropleth(
+    *,
     geojson: dict[str, Any],
     frame: pd.DataFrame,
-    *,
-    initial_measure: str = MEASURES[0].key,
+    initial_measure: MeasureSpec,
+    initial_household_size: int,
     vintage: str = "",
 ) -> go.Figure:
-    """Build an interactive Gemeinde choropleth with a measure dropdown.
+    """Build the two-layer choropleth showing one measure at one household size.
 
     Args:
         geojson: Gemeinde feature collection carrying `fid` properties.
         frame: Map frame returned by `build_map_frame`.
-        initial_measure: Stable key of the measure shown initially.
-        vintage: Range of document effective dates, e.g. `"2019-2026"`, shown in the
-            subtitle. Omitted when empty.
+        initial_measure: Measure the map opens on.
+        initial_household_size: Household size the map opens on.
+        vintage: Range of document effective dates shown in the subtitle.
 
     Returns:
-        A two-layer Plotly MapLibre figure.
-
-    Raises:
-        ValueError: If `initial_measure` is not in `MEASURES` or a measure has no
-            published values.
+        A Plotly MapLibre figure whose second trace carries the measure.
     """
-    initial_spec = _get_measure(initial_measure)
+    display = build_measure_display(
+        frame=frame,
+        spec=initial_measure,
+        household_size=initial_household_size,
+        vintage=vintage,
+    )
+    view = _select_household_size(
+        frame=frame,
+        spec=initial_measure,
+        household_size=initial_household_size,
+    )
     figure = go.Figure(
         data=[
-            _build_base_trace(geojson=geojson, frame=frame),
-            _build_measure_trace(
+            _build_base_trace(geojson=geojson, view=view),
+            go.Choroplethmap(
                 geojson=geojson,
-                frame=frame,
-                spec=initial_spec,
+                locations=view["fid"],
+                featureidkey="properties.fid",
+                z=display.measure_values,
+                zmin=display.lower,
+                zmax=display.upper,
+                zmid=initial_measure.diverging_midpoint,
+                colorscale=build_colourscale(initial_measure),
+                colorbar=display.colourbar,
+                customdata=build_customdata(view),
+                hovertemplate=build_hovertemplate(initial_measure),
+                marker={"opacity": 0.7},
             ),
         ],
     )
-    buttons = [
-        _build_measure_button(
-            geojson=geojson,
-            frame=frame,
-            spec=spec,
-            vintage=vintage,
-        )
-        for spec in MEASURES
-    ]
-    initial_layers = _build_hatch_layers(
-        geojson=geojson,
-        frame=frame,
-        spec=initial_spec,
-    )
+    layers = build_hatch_layers(geojson=geojson, frame=frame, spec=initial_measure)
     figure.update_layout(
-        title={"text": _build_title(frame=frame, spec=initial_spec, vintage=vintage)},
+        title={"text": display.title},
+        separators=GERMAN_SEPARATORS,
         map={
             "style": "carto-positron",
-            "center": GERMANY_CENTER,
-            "zoom": 4.7,
-            "layers": initial_layers,
+            "center": GERMANY_CENTRE,
+            "zoom": GERMANY_ZOOM,
+            "layers": layers,
         },
-        annotations=_build_footnotes(layers=initial_layers, spec=initial_spec),
-        margin={"r": 0, "t": 40, "l": 0, "b": 0},
-        updatemenus=[{"buttons": buttons}],
+        annotations=build_footnotes(layers=layers, spec=initial_measure),
+        margin={"r": 0, "t": 60, "l": 0, "b": 0},
     )
     return figure
 
 
-def _build_hatch_layers(
+def build_hatch_layers(
     *,
     geojson: dict[str, Any],
     frame: pd.DataFrame,
     spec: MeasureSpec,
 ) -> list[dict[str, Any]]:
-    """Return the map layers hatching Gemeinden with an explicit Härtefall rule.
+    """Return the layers hatching Gemeinden with an explicit Härtefallregelung.
 
-    Hatching rather than a fill colour, because the marked Gemeinden must keep
-    showing the selected measure underneath. Empty for measures no rent top-up
-    would change, and empty when no Gemeinde is flagged.
+    Hatching rather than a fill, so the marked Gemeinden keep showing the
+    selected measure underneath. Empty for measures no rent surcharge changes,
+    and empty when no Gemeinde is marked.
     """
     if not spec.reflects_kdu_cap:
         return []
-    flagged = frame.loc[frame[HAERTEFALL_COLUMN], "fid"]
-    lines = build_hatch_geojson(geojson=geojson, fids=set(flagged.astype(int)))
+    marked = frame.loc[frame[HAERTEFALL_COLUMN], "fid"].drop_duplicates()
+    lines = build_hatch_geojson(geojson=geojson, fids=set(marked.astype(int)))
     if not lines["features"]:
         return []
     return [
@@ -182,22 +264,19 @@ def _build_hatch_layers(
     ]
 
 
-def _build_footnotes(
+def build_footnotes(
     *,
     layers: list[dict[str, Any]],
     spec: MeasureSpec,
 ) -> list[dict[str, Any]]:
-    """Caption what the displayed caps already contain and what they leave out.
+    """Caption what a displayed cap already contains and what it leaves out.
 
-    Two independent 10 % surcharges bear on a KdU rent cap, and neither is legible
-    from the number alone:
+    Two separate surcharges of ten percent bear on a KdU cap and neither is
+    legible from the number alone:
 
-    - The BSG's Sicherheitszuschlag on the Wohngeldtabelle, which is already inside
-      the Richtwerte of the Kreise that lack a schlüssiges Konzept.
-    - Berlin's Härtefallzuschlag, which is not included and marks the hatching.
-
-    Both are dropped for measures no rent surcharge would change, and the Härtefall
-    line is dropped when nothing is hatched.
+    - the Sicherheitszuschlag on the Wohngeldtabelle, already inside the
+      Richtwerte of the Kreise without a schlüssiges Konzept
+    - Berlin's Härtefallzuschlag, which is not included and marks the hatching
     """
     lines = []
     if layers:
@@ -223,7 +302,175 @@ def _build_footnotes(
     ]
 
 
-def _derive_ags_8(value: object) -> str:
+def build_customdata(view: pd.DataFrame) -> list[list[Any]]:
+    """Assemble the per-Gemeinde tooltip fields in feature order.
+
+    The third field is the Härtefall line, empty where the document prints no
+    surcharge. An empty string renders as nothing, so one hovertemplate serves
+    both cases.
+    """
+    return [
+        [name, district, HAERTEFALL_HOVER if marked else ""]
+        for name, district, marked in zip(
+            view["municipality_name"],
+            view["district_name"],
+            view[HAERTEFALL_COLUMN],
+            strict=True,
+        )
+    ]
+
+
+def build_hovertemplate(spec: MeasureSpec) -> str:
+    """Compose the tooltip of a measure."""
+    unit = f" {spec.unit}" if spec.unit else ""
+    haertefall = "%{customdata[2]}" if spec.reflects_kdu_cap else ""
+    return (
+        "<b>%{customdata[0]}</b><br>"
+        "Kreis: %{customdata[1]}<br>"
+        f"{spec.label}: %{{z:{spec.hover_format}}}{unit}"
+        f"{haertefall}"
+        "<extra></extra>"
+    )
+
+
+def build_colourscale(spec: MeasureSpec) -> str | list[list[float | str]]:
+    """Return the colour scale of a measure.
+
+    The Mietenstufe gets a stepped scale with one flat band per statutory step,
+    so that neighbouring steps stay distinguishable and no value reads as lying
+    between two steps.
+    """
+    if spec.diverging_midpoint is not None:
+        return "RdBu"
+    if not spec.is_ordinal:
+        return "Viridis"
+    scale: list[list[float | str]] = [[0.0, _MIETENSTUFE_COLOURS[0]]]
+    for index in range(1, len(_MIETENSTUFE_COLOURS)):
+        boundary = (index - 0.5) / (len(_MIETENSTUFE_COLOURS) - 1)
+        scale.extend(
+            [
+                [boundary, _MIETENSTUFE_COLOURS[index - 1]],
+                [boundary, _MIETENSTUFE_COLOURS[index]],
+            ],
+        )
+    scale.append([1.0, _MIETENSTUFE_COLOURS[-1]])
+    return scale
+
+
+def describe_household_size(household_size: int) -> str:
+    """Return the German label of a household size."""
+    if household_size == 1:
+        return "1 Person"
+    return f"{household_size} Personen"
+
+
+def count_covered_gemeinden(view: pd.DataFrame, spec: MeasureSpec) -> tuple[int, int]:
+    """Count the Gemeinden carrying a value, and those the measure could cover.
+
+    Gemeindefreie Gebiete are excluded from both counts: they are unpopulated
+    tracts no KdU document applies to, so counting them would understate
+    coverage.
+    """
+    applies = view["gem_type"].ne(GEMEINDEFREIES_GEBIET)
+    return (
+        int(view.loc[applies, spec.column].notna().sum()),
+        int(applies.sum()),
+    )
+
+
+def _select_household_size(
+    *,
+    frame: pd.DataFrame,
+    spec: MeasureSpec,
+    household_size: int,
+) -> pd.DataFrame:
+    """Return the one row per feature that a measure displays at this size."""
+    size = household_size if spec.varies_by_household_size else 1
+    view = frame.loc[frame["household_size"].eq(size)]
+    return view.sort_values("fid").reset_index(drop=True)
+
+
+def _build_feature_table(geojson: dict[str, Any]) -> pd.DataFrame:
+    """Return `fid`, `ags` and name for every boundary feature, in feature order."""
+    return pd.DataFrame(
+        {
+            "fid": [feature["properties"]["fid"] for feature in geojson["features"]],
+            "ags": [
+                _derive_ags(feature["properties"]["gem_code"])
+                for feature in geojson["features"]
+            ],
+            "municipality_name": [
+                feature["properties"].get("gem_name") for feature in geojson["features"]
+            ],
+        },
+    )
+
+
+def _join_measure_tables(
+    *,
+    kdu_caps: pd.DataFrame,
+    wohngeld_fallback: pd.DataFrame,
+    share_of_stock_above_cap: pd.DataFrame | None,
+) -> pd.DataFrame:
+    """Derive every measure column, keyed by Gemeinde and household size."""
+    keys = ["ags", "household_size"]
+    caps = kdu_caps.loc[
+        :,
+        [*keys, "kdu_cap", "max_area_sqm", HAERTEFALL_COLUMN],
+    ]
+    benchmark = wohngeld_fallback.loc[
+        :,
+        [*keys, "mietenstufe", "wohngeld_fallback_cap"],
+    ]
+    joined = _merge_without_duplicating(caps, benchmark, on=keys)
+
+    measures = joined.loc[:, keys].copy()
+    measures["mietenstufe"] = pd.to_numeric(joined["mietenstufe"], errors="coerce")
+    measures["kdu_cap"] = pd.to_numeric(joined["kdu_cap"], errors="coerce")
+    measures["max_wohnflaeche"] = pd.to_numeric(
+        joined["max_area_sqm"],
+        errors="coerce",
+    )
+    measures["kdu_cap_per_sqm"] = measures["kdu_cap"] / measures["max_wohnflaeche"]
+    measures["wohngeld_fallback_cap"] = pd.to_numeric(
+        joined["wohngeld_fallback_cap"],
+        errors="coerce",
+    )
+    measures["cap_ratio"] = measures["kdu_cap"] / measures["wohngeld_fallback_cap"]
+    measures[HAERTEFALL_COLUMN] = _mark_haertefall(joined[HAERTEFALL_COLUMN])
+    measures["share_of_stock_above_cap"] = _attach_share_of_stock(
+        measures=measures,
+        share_of_stock_above_cap=share_of_stock_above_cap,
+    )
+    return measures
+
+
+def _attach_share_of_stock(
+    *,
+    measures: pd.DataFrame,
+    share_of_stock_above_cap: pd.DataFrame | None,
+) -> pd.Series:
+    """Return the share above the cap as a percentage of the local rented stock.
+
+    The market rent comparison reports the share as a fraction and covers only
+    the Gemeinden the Zensus prices, so Gemeinden it omits stay missing.
+    """
+    if share_of_stock_above_cap is None:
+        return pd.Series(float("nan"), index=measures.index, dtype=float)
+    keys = ["ags", "household_size"]
+    supplied = share_of_stock_above_cap.loc[:, [*keys, SHARE_ABOVE_CAP_COLUMN]]
+    joined = _merge_without_duplicating(measures.loc[:, keys], supplied, on=keys)
+    share = pd.to_numeric(joined[SHARE_ABOVE_CAP_COLUMN], errors="coerce")
+    return (share * PERCENT).to_numpy()
+
+
+def _mark_haertefall(column: pd.Series) -> pd.Series:
+    """Mark the Gemeinden whose document prints a quantified Härtefall surcharge."""
+    return pd.to_numeric(column, errors="coerce").eq(1).fillna(value=False).astype(bool)
+
+
+def _derive_ags(value: object) -> str:
+    """Reduce a boundary feature's twelve-digit code to the eight-digit AGS."""
     code = value[0] if isinstance(value, list) else value
     text = str(code)
     if len(text) <= AGS_LENGTH:
@@ -232,43 +479,54 @@ def _derive_ags_8(value: object) -> str:
     return f"{text[:5]}{text[-3:]}"
 
 
-def _normalise_ags_8(value: object) -> str:
-    return str(value).zfill(AGS_LENGTH)
+def _merge_without_duplicating(
+    left: pd.DataFrame,
+    right: pd.DataFrame,
+    *,
+    on: str | list[str],
+) -> pd.DataFrame:
+    """Left-join and fail if the row count changes.
+
+    A many-to-many join inflates row counts silently, and every count and colour
+    range downstream would then be wrong without anything visibly breaking.
+    """
+    merged = left.merge(right, on=on, how="left", sort=False)
+    _fail_if_join_duplicated_rows(before=len(left), after=len(merged), on=on)
+    return merged
 
 
-def _mark_haertefall(kdu: pd.DataFrame) -> pd.Series:
-    """Flag the Gemeinden whose document prints a quantified Härtefall uplift."""
-    if HAERTEFALL_COLUMN not in kdu.columns:
-        return pd.Series(data=False, index=kdu.index, dtype=bool)
-    flag = pd.to_numeric(kdu[HAERTEFALL_COLUMN], errors="coerce")
-    return flag.eq(1).fillna(value=False).astype(bool)
-
-
-def _fail_if_kdu_rows_are_missing(joined: pd.DataFrame) -> None:
-    missing_ags = joined.loc[joined["_kdu_join"].eq("left_only"), "ags"].tolist()
-    if missing_ags:
-        msg = f"Every Gemeinde needs a KdU row; missing AGS: {missing_ags[:5]}"
+def _fail_if_join_duplicated_rows(
+    *, before: int, after: int, on: str | list[str]
+) -> None:
+    if before != after:
+        msg = (
+            f"Joining on {on} changed the row count from {before} to {after}; "
+            f"the right-hand frame is not unique on those keys"
+        )
         raise ValueError(msg)
 
 
-def _get_measure(key: str) -> MeasureSpec:
-    try:
-        return next(spec for spec in MEASURES if spec.key == key)
-    except StopIteration:
-        msg = f"Unknown measure: {key}"
-        raise ValueError(msg) from None
+def _fail_if_features_lack_measures(frame: pd.DataFrame) -> None:
+    missing = frame.loc[frame["household_size"].isna(), "ags"].unique().tolist()
+    if len(missing) > 0:
+        msg = (
+            f"Every boundary feature needs a cap row; "
+            f"{len(missing)} lack one, for example {missing[:5]}"
+        )
+        raise ValueError(msg)
 
 
 def _build_base_trace(
     *,
     geojson: dict[str, Any],
-    frame: pd.DataFrame,
+    view: pd.DataFrame,
 ) -> go.Choroplethmap:
+    """Return the flat grey layer that shows Gemeinden without a value."""
     return go.Choroplethmap(
         geojson=geojson,
-        locations=frame["fid"],
+        locations=view["fid"],
         featureidkey="properties.fid",
-        z=[0.0] * len(frame),
+        z=[0.0] * len(view),
         zmin=0,
         zmax=1,
         colorscale=[[0, "#d9d9d9"], [1, "#d9d9d9"]],
@@ -278,207 +536,38 @@ def _build_base_trace(
     )
 
 
-def _build_measure_trace(
-    *,
-    geojson: dict[str, Any],
-    frame: pd.DataFrame,
-    spec: MeasureSpec,
-) -> go.Choroplethmap:
-    lower, upper = compute_colour_range(values=frame[spec.column], spec=spec)
-    return go.Choroplethmap(
-        geojson=geojson,
-        locations=frame["fid"],
-        featureidkey="properties.fid",
-        z=frame[spec.column],
-        customdata=_build_customdata(frame=frame, spec=spec),
-        hovertemplate=_build_hovertemplate(spec),
-        zmin=lower,
-        zmax=upper,
-        colorscale=_build_colorscale(spec),
-        colorbar=_build_colorbar(spec=spec, lower=lower, upper=upper),
-        marker={"opacity": 0.7},
-    )
-
-
-def _build_measure_button(
-    *,
-    geojson: dict[str, Any],
-    frame: pd.DataFrame,
-    spec: MeasureSpec,
-    vintage: str = "",
-) -> dict[str, Any]:
-    lower, upper = compute_colour_range(values=frame[spec.column], spec=spec)
-    trace_update = {
-        "z": [frame[spec.column].tolist()],
-        "customdata": [_build_customdata(frame=frame, spec=spec)],
-        "hovertemplate": [_build_hovertemplate(spec)],
-        "zmin": [lower],
-        "zmax": [upper],
-        "colorscale": [_build_colorscale(spec)],
-        "colorbar": [_build_colorbar(spec=spec, lower=lower, upper=upper)],
-    }
-    layers = _build_hatch_layers(geojson=geojson, frame=frame, spec=spec)
-    return {
-        "label": spec.label,
-        "method": "update",
-        "args": [
-            trace_update,
-            {
-                "title.text": _build_title(frame=frame, spec=spec, vintage=vintage),
-                "map.layers": layers,
-                "annotations": _build_footnotes(layers=layers, spec=spec),
-            },
-            [1],
-        ],
-    }
-
-
-def _build_customdata(*, frame: pd.DataFrame, spec: MeasureSpec) -> list[list[Any]]:
-    """Assemble the per-Gemeinde tooltip fields.
-
-    The fourth field is the Härtefall line, empty for every Gemeinde whose
-    document prints no top-up and for measures a top-up would not change. An
-    empty string renders as nothing, so one hovertemplate serves both cases.
-    """
-    notes = frame[HAERTEFALL_COLUMN] & spec.reflects_kdu_cap
-    return [
-        [name, kreis, value, HAERTEFALL_HOVER if note else ""]
-        for name, kreis, value, note in zip(
-            frame["name"],
-            frame["kreis"],
-            frame[spec.column],
-            notes,
-            strict=True,
-        )
-    ]
-
-
-def _build_hovertemplate(spec: MeasureSpec) -> str:
-    unit = f" {spec.colourbar_title or spec.unit}" if spec.unit else ""
-    return (
-        "<b>%{customdata[0]}</b><br>"
-        "Kreis: %{customdata[1]}<br>"
-        f"{_hover_label(spec)}: %{{customdata[2]:{spec.hover_format}}}{unit}"
-        "%{customdata[3]}"
-        "<extra></extra>"
-    )
-
-
-def _hover_label(spec: MeasureSpec) -> str:
-    """Strip the dropdown's group prefix so tooltips stay short."""
-    return spec.label.split(" · ", maxsplit=1)[-1]
-
-
 def _build_title(
     *,
-    frame: pd.DataFrame,
+    view: pd.DataFrame,
     spec: MeasureSpec,
-    vintage: str = "",
+    household_size: int,
+    vintage: str,
 ) -> str:
-    """Compose the two-line figure title.
-
-    The first line names what the colour shows, the second gives the legal basis,
-    the unit, how many Gemeinden carry a value, and why the rest do not.
-    """
-    headline = spec.headline or spec.label
-    parts = [spec.context] if spec.context else []
-    parts.append(_describe_coverage(frame=frame, spec=spec))
+    """Compose the two-line title: what the colour shows, then how to read it."""
+    headline = spec.headline
+    if spec.varies_by_household_size:
+        headline = f"{headline}, {describe_household_size(household_size)}"
+    covered, total = count_covered_gemeinden(view, spec)
+    parts = [
+        spec.context,
+        f"{_format_count(covered)} von {_format_count(total)} Gemeinden mit Wert",
+    ]
     if vintage:
         parts.append(f"Stand der Richtlinien {vintage}")
     return f"{headline}<br><sup>{' · '.join(parts)}</sup>"
-
-
-@dataclass(frozen=True)
-class CoverageCounts:
-    """How many Gemeinden a measure covers, and why the rest are blank."""
-
-    total: int
-    """Gemeinden the measure could apply to, excluding gemeindefreie Gebiete."""
-    covered: int
-    """Gemeinden carrying a value."""
-    counterpart: int
-    """Blank Gemeinden that are capped under the other rent concept instead."""
-    missing: int
-    """Blank Gemeinden with no cap at all."""
-
-
-def count_coverage(*, frame: pd.DataFrame, spec: MeasureSpec) -> CoverageCounts:
-    """Count how many Gemeinden a measure covers.
-
-    Gemeindefreie Gebiete are excluded throughout: they are unpopulated tracts no
-    KdU document applies to, so counting them would understate coverage.
-
-    Args:
-        frame: Map frame returned by `build_map_frame`.
-        spec: Display specification for the measure.
-
-    Returns:
-        Counts that always satisfy `covered + counterpart + missing == total`.
-    """
-    is_gemeinde = frame["gem_type"].ne("Gemeindefreies Gebiet")
-    present = frame.loc[is_gemeinde, spec.column].notna()
-    total = int(is_gemeinde.sum())
-    covered = int(present.sum())
-    counterpart = 0
-    if spec.counterpart_column and spec.counterpart_column in frame.columns:
-        counterpart = int(
-            (~present & frame.loc[is_gemeinde, spec.counterpart_column].notna()).sum(),
-        )
-    return CoverageCounts(
-        total=total,
-        covered=covered,
-        counterpart=counterpart,
-        missing=total - covered - counterpart,
-    )
-
-
-def _describe_coverage(*, frame: pd.DataFrame, spec: MeasureSpec) -> str:
-    """Split the Gemeinden into those with a value and the reasons the rest lack one."""
-    counts = count_coverage(frame=frame, spec=spec)
-    pieces = [
-        f"{_format_count(counts.covered)} von "
-        f"{_format_count(counts.total)} Gemeinden mit Wert",
-    ]
-    if counts.counterpart:
-        pieces.append(f"{_format_count(counts.counterpart)} {spec.counterpart_text}")
-    if counts.missing:
-        pieces.append(f"{_format_count(counts.missing)} ohne Angabe")
-    return ", ".join(pieces)
 
 
 def _format_count(value: int) -> str:
     return f"{value:,}".replace(",", ".")
 
 
-def _build_colorscale(spec: MeasureSpec) -> str | list[list[float | str]]:
-    if spec.is_diverging:
-        return "RdBu"
-    if not spec.is_ordinal:
-        return "Viridis"
-    colours = (
-        "#440154",
-        "#443983",
-        "#31688e",
-        "#21918c",
-        "#35b779",
-        "#90d743",
-        "#fde725",
-    )
-    scale: list[list[float | str]] = [[0.0, colours[0]]]
-    for index in range(1, len(colours)):
-        boundary = (index - 0.5) / (len(colours) - 1)
-        scale.extend([[boundary, colours[index - 1]], [boundary, colours[index]]])
-    scale.append([1.0, colours[-1]])
-    return scale
-
-
-def _build_colorbar(
+def _build_colourbar(
     *,
     spec: MeasureSpec,
     lower: float,
     upper: float,
 ) -> dict[str, Any]:
-    title = spec.colourbar_title or spec.unit or "Mietstufe"
+    title = spec.unit or "Mietenstufe"
     if spec.is_ordinal:
         return {
             "title": {"text": title},
@@ -491,12 +580,14 @@ def _build_colorbar(
         "tickmode": "array",
         "tickvals": [lower, upper],
         "ticktext": [
-            f"≤{_format_tick(lower, spec)}",
-            f"≥{_format_tick(upper, spec)}",
+            f"≤{_format_bound(lower, spec)}",
+            f"≥{_format_bound(upper, spec)}",
         ],
     }
 
 
-def _format_tick(value: float, spec: MeasureSpec) -> str:
+def _format_bound(value: float, spec: MeasureSpec) -> str:
+    """Format a colour-bar bound the German way: point thousands, comma decimals."""
     decimals = 2 if spec.hover_format.endswith(".2f") else 0
-    return f"{value:,.{decimals}f}"
+    formatted = f"{value:,.{decimals}f}"
+    return formatted.replace(",", "\x00").replace(".", ",").replace("\x00", ".")

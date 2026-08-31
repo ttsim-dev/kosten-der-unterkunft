@@ -1,4 +1,4 @@
-"""Prepare the Gemeinde data artifacts from the OpenDataSoft source.
+"""Prepare the committed Gemeinde boundary and lookup files from OpenDataSoft.
 
 Fetches the raw ``georef-germany-gemeinde`` export (~58 MB) into ``bld/``
 (gitignored) and writes two committed files under ``data/``:
@@ -28,13 +28,13 @@ DECIMALS = 2
 
 
 def main() -> None:
-    """Download the raw boundaries, simplify them, and write the slim file."""
+    """Download the raw boundaries, simplify them, and write the two files."""
     BLD.mkdir(exist_ok=True)
     DATA.mkdir(exist_ok=True)
     raw_path = BLD / "gemeinden_raw.geojson"
     if not raw_path.exists():
         print(f"downloading {SOURCE_URL}")
-        urllib.request.urlretrieve(SOURCE_URL, raw_path)  # noqa: S310
+        urllib.request.urlretrieve(SOURCE_URL, raw_path)
     raw = json.loads(raw_path.read_text(encoding="utf-8"))
 
     slim = _slim_properties(simplify_feature_collection(raw, decimals=DECIMALS))

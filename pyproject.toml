@@ -35,7 +35,9 @@ metadata.allow-direct-references = true
 version.source = "vcs"
 
 [tool.pixi.dependencies]
+gettsim = ">=1.3,<2"
 numpy = "*"
+openpyxl = "*"
 pandas = "*"
 plotly = "*"
 prek = "*"
@@ -56,7 +58,12 @@ ty = "ty check"
 kdu = { path = ".", editable = true }
 pdbp = "*"
 [tool.pixi.tasks]
-prepare-gemeinden = "python scripts/prepare_gemeinden.py"
+# Refresh the committed inputs in `data/`. These reach the network and are run
+# by hand when a new vintage appears; the pytask graph never calls them.
+fetch-gemeinden = "python scripts/prepare_gemeinden.py"
+fetch-gemeinde-population = "python scripts/fetch_gemeinde_population.py"
+fetch-wohnkostenstatistik = "python scripts/fetch_ba_wohnkosten.py"
+fetch-zensus-mieten = "python scripts/fetch_zensus_mieten.py"
 pytask = "pytask"
 [tool.pixi.workspace]
 channels = [ "conda-forge" ]
@@ -67,6 +74,9 @@ fix = true
 unsafe-fixes = false
 [tool.ruff.lint]
 select = [ "ALL" ]
+# Mathematical minus, multiplication sign and en dash are the correct characters
+# in this project's docstrings, figure labels and table headers.
+allowed-confusables = [ "−", "×", "–" ]
 extend-ignore = [
   "COM812",  # Conflicts with ruff-format
   "EM101",   # Exception must not use a string literal
@@ -83,8 +93,19 @@ extend-ignore = [
   "TRY003",  # Long messages outside exception class
 ]
 per-file-ignores."scripts/*" = [
-  "INP001", # Implicit namespace package (scripts are run, not imported)
-  "T201",   # print (scripts report progress to stdout)
+  "ANN401",  # Any (workbook cells are genuinely untyped)
+  "DTZ011",  # date.today (a retrieval date is a local calendar date)
+  "INP001",  # Implicit namespace package (scripts are run, not imported)
+  "PD010",   # unstack over pivot_table (unstack raises on duplicated keys)
+  "PD015",   # pd.merge over .merge
+  "PERF401", # list comprehension over append
+  "PLC0415", # Import outside top level (optional parsing dependencies)
+  "PLR2004", # Magic value (HTTP status codes and column offsets)
+  "S310",    # urllib open (these scripts exist to fetch over https)
+  "T201",    # print (scripts report progress to stdout)
+]
+per-file-ignores."**/task_*.py" = [
+  "B008", # Function call in argument default: pytask discovers dependencies this way
 ]
 per-file-ignores."tests/*" = [
   "D",       # Docstrings

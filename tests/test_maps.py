@@ -1,460 +1,199 @@
-"""Tests for the measure-selectable Gemeinde choropleth."""
+"""Tests for the choropleth's join, its derived measures and its colour ranges."""
 
 from typing import Any
 
-import numpy as np
 import pandas as pd
 import pytest
 
-from kdu.maps import build_choropleth, build_map_frame, count_coverage
-from kdu.measures import MEASURES, MeasureSpec, compute_colour_range
+from kdu.config import MAP_MEASURES
+from kdu.maps import (
+    _derive_ags,
+    _merge_without_duplicating,
+    build_hovertemplate,
+    build_map_frame,
+    describe_household_size,
+)
+from kdu.measures import MEASURES, compute_colour_range, get_measure
+
+HOUSEHOLD_SIZES = (1, 2, 3, 4, 5)
 
 
 @pytest.fixture
 def geojson() -> dict[str, Any]:
-    """Return three minimal Gemeinde features in map order."""
-    features = []
-    properties = (
-        {"fid": 0, "gem_code": "010010000000", "gem_name": "Flensburg"},
-        {"fid": 1, "gem_code": "091620000000", "gem_name": "München"},
-        {"fid": 2, "gem_code": "146270060060", "gem_name": "Großenhain"},
-    )
-    for index, feature_properties in enumerate(properties):
-        longitude = 9.0 + index
-        features.append(
+    """Two boundary features carrying the twelve-digit source code and a `fid`."""
+    return {
+        "type": "FeatureCollection",
+        "features": [
             {
                 "type": "Feature",
-                "properties": feature_properties,
-                "geometry": {
-                    "type": "Polygon",
-                    "coordinates": [
-                        [
-                            [longitude, 50.0],
-                            [longitude, 50.1],
-                            [longitude + 0.1, 50.1],
-                            [longitude, 50.0],
-                        ],
-                    ],
+                "geometry": None,
+                "properties": {
+                    "fid": 0,
+                    "gem_code": "010010000000",
+                    "gem_name": "Flensburg",
                 },
             },
-        )
-    return {"type": "FeatureCollection", "features": features}
+            {
+                "type": "Feature",
+                "geometry": None,
+                "properties": {
+                    "fid": 1,
+                    "gem_code": "010020000000",
+                    "gem_name": "Kiel",
+                },
+            },
+        ],
+    }
 
 
 @pytest.fixture
-def kdu() -> pd.DataFrame:
-    """Return completed KdU values for all three Gemeinden."""
+def kdu_caps() -> pd.DataFrame:
+    """Caps rising with household size for both Gemeinden."""
     return pd.DataFrame(
         {
-            "ags_gemeinde": ["01001000", "09162000", "14627060"],
-            "haertefall_regelung": [np.nan, 1, np.nan],
-            "wogg_mietstufe": [3, 7, np.nan],
-            "max_bruttokaltmiete_eur_1p": [540, 849, 410],
-            "max_bruttokaltmiete_eur_2p": [661, 1092, 500],
-            "max_bruttokaltmiete_eur_4p": [929, 1569, 700],
-            "max_bruttokaltmiete_eur_sqm": [10.80, 16.98, np.nan],
-            "max_nettokaltmiete_eur_1p": [450, 700, 350],
-            "max_nettokaltmiete_eur_4p": [800, 1300, 600],
-            "max_wohnflaeche_sqm_1p": [50, 50, 45],
-            "max_wohnflaeche_sqm_4p": [90, 90, 85],
-            "wogg_hoechstbetrag_eur_1p": [456, 677, 408],
-            "wogg_hoechstbetrag_eur_2p": [551, 820, 493],
-            "wogg_hoechstbetrag_eur_4p": [766, 1139, 686],
-            "kdu_vs_wogg_pct_1p": [18.4, 25.4, 0.5],
-            "kdu_vs_wogg_pct_2p": [20.0, 33.2, 1.4],
-            "kdu_vs_wogg_pct_4p": [21.3, 37.8, 2.0],
+            "ags": ["01001000"] * 5 + ["01002000"] * 5,
+            "household_size": list(HOUSEHOLD_SIZES) * 2,
+            "kdu_cap": [500.0, 600.0, 700.0, 800.0, 900.0] * 2,
+            "max_area_sqm": [50.0, 60.0, 75.0, 85.0, 95.0] * 2,
+            "haertefall_regelung": [None] * 10,
         },
     )
 
 
 @pytest.fixture
-def lookup() -> pd.DataFrame:
-    """Return Kreis names keyed like the production lookup table."""
+def wohngeld_fallback() -> pd.DataFrame:
+    """A benchmark of 400 euro at every size, so every ratio is a round number."""
     return pd.DataFrame(
         {
-            "ags": ["010010000000", "091620000000", "146270060060"],
-            "kreis": ["Flensburg", "München", "Landkreis Meißen"],
-            "gem_type": ["Stadt", "Stadt", "Gemeindefreies Gebiet"],
+            "ags": ["01001000"] * 5 + ["01002000"] * 5,
+            "household_size": list(HOUSEHOLD_SIZES) * 2,
+            "mietenstufe": [3] * 10,
+            "wohngeld_fallback_cap": [400.0] * 10,
         },
     )
 
 
-def test_build_map_frame_returns_features_and_measures_in_map_order(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
-) -> None:
-    expected = pd.DataFrame(
+@pytest.fixture
+def gemeinden() -> pd.DataFrame:
+    return pd.DataFrame(
         {
-            "fid": [0, 1, 2],
-            "ags": ["01001000", "09162000", "14627060"],
-            "name": ["Flensburg", "München", "Großenhain"],
-            "kreis": ["Flensburg", "München", "Landkreis Meißen"],
-            "gem_type": ["Stadt", "Stadt", "Gemeindefreies Gebiet"],
-            "haertefall_regelung": [False, True, False],
-            "wogg_mietstufe": [3.0, 7.0, np.nan],
-            "max_bruttokaltmiete_eur_1p": [540.0, 849.0, 410.0],
-            "max_bruttokaltmiete_eur_2p": [661.0, 1092.0, 500.0],
-            "max_bruttokaltmiete_eur_4p": [929.0, 1569.0, 700.0],
-            "max_bruttokaltmiete_eur_sqm": [10.80, 16.98, np.nan],
-            "max_nettokaltmiete_eur_1p": [450.0, 700.0, 350.0],
-            "max_nettokaltmiete_eur_4p": [800.0, 1300.0, 600.0],
-            "max_wohnflaeche_sqm_1p": [50.0, 50.0, 45.0],
-            "max_wohnflaeche_sqm_4p": [90.0, 90.0, 85.0],
-            "wogg_hoechstbetrag_eur_1p": [456.0, 677.0, 408.0],
-            "wogg_hoechstbetrag_eur_2p": [551.0, 820.0, 493.0],
-            "wogg_hoechstbetrag_eur_4p": [766.0, 1139.0, 686.0],
-            "kdu_vs_wogg_pct_1p": [18.4, 25.4, 0.5],
-            "kdu_vs_wogg_pct_2p": [20.0, 33.2, 1.4],
-            "kdu_vs_wogg_pct_4p": [21.3, 37.8, 2.0],
+            "ags": ["01001000", "01002000"],
+            "district_name": ["Kreisfreie Stadt Flensburg", "Kreisfreie Stadt Kiel"],
         },
     )
 
-    result = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
 
-    pd.testing.assert_frame_equal(result, expected)
-
-
-def test_build_map_frame_raises_when_a_feature_has_no_kdu_row(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
-) -> None:
-    incomplete_kdu = kdu.loc[kdu["ags_gemeinde"].ne("14627060")]
-
-    with pytest.raises(ValueError, match="KdU"):
-        build_map_frame(geojson=geojson, kdu=incomplete_kdu, lookup=lookup)
-
-
-def test_compute_colour_range_returns_concrete_percentiles() -> None:
-    values = pd.Series([0.0, 25.0, 50.0, 75.0, 100.0, np.nan])
-
-    result = compute_colour_range(values=values, spec=MEASURES[1])
-
-    assert result == pytest.approx((2.0, 98.0))
-
-
-def test_compute_colour_range_raises_for_all_missing_values() -> None:
-    values = pd.Series([np.nan, np.nan])
-
-    with pytest.raises(ValueError, match="non-missing"):
-        compute_colour_range(values=values, spec=MEASURES[1])
-
-
-def test_compute_colour_range_returns_full_ordinal_range() -> None:
-    ordinal_spec = MeasureSpec(
-        key="level",
-        column="level",
-        label="Stufe",
-        unit="",
-        hover_format="d",
-        is_ordinal=True,
+@pytest.fixture
+def gemeinde_types() -> pd.DataFrame:
+    return pd.DataFrame(
+        {"ags": ["01001000", "01002000"], "gem_type": ["Stadt", "Stadt"]},
     )
 
-    result = compute_colour_range(values=pd.Series([2.0, 5.0]), spec=ordinal_spec)
 
-    assert result == (1, 7)
-
-
-def test_compute_colour_range_returns_symmetric_diverging_range() -> None:
-    diverging_spec = MeasureSpec(
-        key="difference",
-        column="difference",
-        label="Differenz",
-        unit="%",
-        hover_format="+,.1f",
-        is_ordinal=False,
-        is_diverging=True,
-    )
-    values = pd.Series([-100.0, -25.0, 0.0, 50.0, np.nan])
-
-    result = compute_colour_range(values=values, spec=diverging_spec)
-
-    assert result == pytest.approx((-95.5, 95.5))
-
-
-def test_build_choropleth_has_base_measure_and_fifteen_dropdown_options(
+@pytest.fixture
+def frame(
     geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
-) -> None:
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-
-    figure = build_choropleth(geojson=geojson, frame=frame)
-
-    assert (
-        len(figure.data),
-        len(figure.layout.updatemenus[0].buttons),
-    ) == (2, 15)
-
-
-def test_build_choropleth_preserves_missing_values_in_measure_layer(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
-) -> None:
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-
-    figure = build_choropleth(geojson=geojson, frame=frame)
-
-    assert np.isnan(figure.data[1].z[2])
-
-
-def test_build_choropleth_centres_diverging_measure_range_on_zero(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
-) -> None:
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-
-    figure = build_choropleth(
+    kdu_caps: pd.DataFrame,
+    wohngeld_fallback: pd.DataFrame,
+    gemeinden: pd.DataFrame,
+    gemeinde_types: pd.DataFrame,
+) -> pd.DataFrame:
+    return build_map_frame(
         geojson=geojson,
-        frame=frame,
-        initial_measure="kdu_vs_wogg_pct_1p",
-    )
-
-    assert figure.data[1].zmin == pytest.approx(-figure.data[1].zmax)
-
-
-def test_build_choropleth_colours_negative_red_and_positive_blue(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
-) -> None:
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-
-    figure = build_choropleth(
-        geojson=geojson,
-        frame=frame,
-        initial_measure="kdu_vs_wogg_pct_1p",
-    )
-    colorscale = figure.data[1].colorscale
-
-    assert (colorscale[0][1], colorscale[-1][1]) == (
-        "rgb(103,0,31)",
-        "rgb(5,48,97)",
+        kdu_caps=kdu_caps,
+        wohngeld_fallback=wohngeld_fallback,
+        gemeinden=gemeinden,
+        gemeinde_types=gemeinde_types,
     )
 
 
-def test_count_coverage_excludes_gemeindefreie_gebiete_from_the_total(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
+def test_derive_ags_reduces_twelve_digit_code_to_the_eight_digit_key() -> None:
+    """The boundary source's twelve-digit code keeps its Kreis and Gemeinde parts."""
+    assert _derive_ags("010010000000") == "01001000"
+
+
+def test_build_map_frame_yields_one_row_per_feature_and_household_size(
+    frame: pd.DataFrame,
 ) -> None:
-    """Unpopulated tracts no document applies to must not count against coverage."""
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-
-    result = count_coverage(frame=frame, spec=MEASURES[0])
-
-    assert (result.total, result.covered) == (2, 2)
+    """Two features at five household sizes give ten rows."""
+    assert len(frame) == 10
 
 
-def test_count_coverage_attributes_a_blank_to_the_other_rent_concept(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
+def test_build_map_frame_divides_the_cap_by_the_benchmark(
+    frame: pd.DataFrame,
 ) -> None:
-    """A Gemeinde capped as Nettokaltmiete is not counted as missing data."""
-    kdu.loc[kdu["ags_gemeinde"].eq("09162000"), "max_bruttokaltmiete_eur_4p"] = np.nan
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-    spec = next(m for m in MEASURES if m.key == "max_bruttokaltmiete_eur_4p")
-
-    result = count_coverage(frame=frame, spec=spec)
-
-    assert (result.counterpart, result.missing) == (1, 0)
+    """A 500 euro cap against a 400 euro benchmark is a ratio of 1.25."""
+    row = frame.query("fid == 0 and household_size == 1")
+    assert row["cap_ratio"].to_numpy()[0] == pytest.approx(1.25)
 
 
-def test_build_map_frame_marks_gemeinden_with_an_explicit_haertefall_rule(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
+def test_build_map_frame_divides_the_cap_by_the_admissible_floor_area(
+    frame: pd.DataFrame,
 ) -> None:
-    """Only the Gemeinde whose document prints a Härtefall uplift is marked."""
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
+    """A 600 euro cap over 60 square metres is 10 euro per square metre."""
+    row = frame.query("fid == 0 and household_size == 2")
+    assert row["kdu_cap_per_sqm"].to_numpy()[0] == pytest.approx(10.0)
 
-    assert frame["haertefall_regelung"].tolist() == [False, True, False]
 
-
-def test_build_choropleth_hatches_only_the_flagged_gemeinde(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
+def test_build_map_frame_leaves_the_share_above_the_cap_missing_when_not_supplied(
+    frame: pd.DataFrame,
 ) -> None:
-    """Hatch lines fall inside München's feature and nowhere else."""
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-
-    figure = build_choropleth(
-        geojson=geojson,
-        frame=frame,
-        initial_measure="max_bruttokaltmiete_eur_1p",
-    )
-    drawn = [
-        longitude
-        for layer in figure.layout.map.layers
-        for feature in layer["source"]["features"]
-        for longitude, _ in feature["geometry"]["coordinates"]
-    ]
-
-    assert (min(drawn), max(drawn)) == pytest.approx((10.0, 10.1), abs=0.05)
+    """The market rent comparison is optional; its measure is then unobserved."""
+    assert frame["share_of_stock_above_cap"].isna().all()
 
 
-def test_build_choropleth_hides_the_hatch_for_measures_no_topup_changes(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
+def test_merge_without_duplicating_rejects_a_right_frame_with_repeated_keys() -> None:
+    """A many-to-many join would inflate every count and colour range downstream."""
+    left = pd.DataFrame({"ags": ["01001000"], "value": [1.0]})
+    right = pd.DataFrame({"ags": ["01001000", "01001000"], "other": [2.0, 3.0]})
+    with pytest.raises(ValueError, match="changed the row count"):
+        _merge_without_duplicating(left, right, on="ags")
+
+
+def test_every_registered_map_measure_resolves_to_a_specification() -> None:
+    """The catalog's measure names and the measure registry agree."""
+    assert tuple(get_measure(key).key for key in MAP_MEASURES) == MAP_MEASURES
+
+
+def test_get_measure_rejects_an_unregistered_key() -> None:
+    with pytest.raises(ValueError, match="Unknown measure"):
+        get_measure("nettokaltmiete")
+
+
+def test_colour_range_of_the_mietenstufe_spans_the_statutory_scale() -> None:
+    """The Mietenstufe runs 1 to 7 whatever the observed values."""
+    spec = get_measure("mietenstufe")
+    assert compute_colour_range(pd.Series([2.0, 3.0]), spec) == (1.0, 7.0)
+
+
+def test_colour_range_of_a_diverging_measure_is_symmetric_about_its_midpoint() -> None:
+    """Equal departures above and below the benchmark must read equally strong."""
+    spec = get_measure("cap_ratio")
+    lower, upper = compute_colour_range(pd.Series([0.8, 1.0, 1.3]), spec)
+    assert lower + upper == pytest.approx(2.0)
+
+
+def test_colour_range_of_a_sequential_measure_spans_its_display_quantiles() -> None:
+    """A single observed value collapses the 2nd and 98th percentile onto it."""
+    spec = get_measure("kdu_cap")
+    assert compute_colour_range(pd.Series([450.0]), spec) == (450.0, 450.0)
+
+
+def test_hovertemplate_names_the_haertefall_field_only_for_a_cap_measure() -> None:
+    """A rent surcharge changes a cap, not the Wohnfläche it is measured over."""
+    assert "customdata[2]" not in build_hovertemplate(get_measure("max_wohnflaeche"))
+
+
+def test_hovertemplate_names_the_haertefall_field_for_a_cap_measure() -> None:
+    assert "customdata[2]" in build_hovertemplate(get_measure("kdu_cap"))
+
+
+@pytest.mark.parametrize(
+    ("household_size", "expected"),
+    [(1, "1 Person"), (4, "4 Personen")],
+)
+def test_describe_household_size_uses_the_german_singular_and_plural(
+    household_size: int,
+    expected: str,
 ) -> None:
-    """The Mietstufe is not a KdU rent cap, so it carries no hatching."""
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-
-    figure = build_choropleth(
-        geojson=geojson,
-        frame=frame,
-        initial_measure="wogg_mietstufe",
-    )
-
-    assert figure.layout.map.layers == ()
-
-
-def test_measure_buttons_toggle_the_hatch_with_the_measure(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
-) -> None:
-    """Exactly the nine rent-cap measures switch the overlay on."""
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-
-    figure = build_choropleth(geojson=geojson, frame=frame)
-    hatched = [
-        bool(button["args"][1]["map.layers"])
-        for button in figure.layout.updatemenus[0].buttons
-    ]
-
-    assert hatched == [spec.reflects_kdu_cap for spec in MEASURES]
-
-
-def test_measure_buttons_carry_the_haertefall_note(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
-) -> None:
-    """The hatched measures explain the overlay and name the 10 % top-up."""
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-
-    figure = build_choropleth(geojson=geojson, frame=frame)
-    button = next(
-        button
-        for button, spec in zip(
-            figure.layout.updatemenus[0].buttons,
-            MEASURES,
-            strict=True,
-        )
-        if spec.reflects_kdu_cap
-    )
-
-    assert "10 %" in button["args"][1]["annotations"][0]["text"]
-
-
-def test_build_choropleth_omits_the_hatch_when_nothing_is_flagged(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
-) -> None:
-    """A map with no flagged Gemeinde shows no overlay on any measure."""
-    kdu["haertefall_regelung"] = np.nan
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-
-    figure = build_choropleth(
-        geojson=geojson,
-        frame=frame,
-        initial_measure="max_bruttokaltmiete_eur_1p",
-    )
-
-    assert figure.layout.map.layers == ()
-
-
-def test_hover_names_the_haertefall_topup_for_flagged_gemeinden(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
-) -> None:
-    """München's tooltip states the 10 % top-up; the others carry no such line."""
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-
-    figure = build_choropleth(
-        geojson=geojson,
-        frame=frame,
-        initial_measure="max_bruttokaltmiete_eur_1p",
-    )
-    notes = [row[3] for row in figure.data[1].customdata]
-
-    assert [bool(note) for note in notes] == [False, True, False]
-
-
-def test_hover_omits_the_haertefall_topup_where_it_cannot_apply(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
-) -> None:
-    """The Mietstufe tooltip stays silent, since no rent top-up changes it."""
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-
-    figure = build_choropleth(
-        geojson=geojson,
-        frame=frame,
-        initial_measure="wogg_mietstufe",
-    )
-
-    assert not any(row[3] for row in figure.data[1].customdata)
-
-
-def test_rent_cap_measures_cite_the_sicherheitszuschlag_ruling(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
-) -> None:
-    """A rent-cap figure names the BSG decision behind the 10 % Sicherheitszuschlag."""
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-
-    figure = build_choropleth(
-        geojson=geojson,
-        frame=frame,
-        initial_measure="max_bruttokaltmiete_eur_1p",
-    )
-
-    assert "B 4 AS 87/12 R" in figure.layout.annotations[0]["text"]
-
-
-def test_measures_no_rent_cap_carry_no_footnote(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
-) -> None:
-    """The Mietstufe is not a rent cap, so neither footnote applies to it."""
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-
-    figure = build_choropleth(
-        geojson=geojson,
-        frame=frame,
-        initial_measure="wogg_mietstufe",
-    )
-
-    assert figure.layout.annotations == ()
-
-
-def test_sicherheitszuschlag_note_stands_without_any_flagged_gemeinde(
-    geojson: dict[str, Any],
-    kdu: pd.DataFrame,
-    lookup: pd.DataFrame,
-) -> None:
-    """The ruling applies Kreis-wide, so it is footnoted even with no hatching."""
-    kdu["haertefall_regelung"] = np.nan
-    frame = build_map_frame(geojson=geojson, kdu=kdu, lookup=lookup)
-
-    figure = build_choropleth(
-        geojson=geojson,
-        frame=frame,
-        initial_measure="max_bruttokaltmiete_eur_1p",
-    )
-    text = figure.layout.annotations[0]["text"]
-
-    assert ("B 4 AS 87/12 R" in text, "Schraffur" in text) == (True, False)
+    assert describe_household_size(household_size) == expected
