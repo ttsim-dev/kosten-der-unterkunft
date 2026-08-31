@@ -14,11 +14,11 @@ therefore the legally correct comparator rather than an arbitrary one.
 
 ## What it finds
 
-- The fallback is **almost exactly right on average and badly wrong locally**: the
-  median Gemeinde sits within a fraction of a percent of it, while the tenth and
-  ninetieth percentiles sit roughly 17% below and 23% above.
+- The fallback is **right on average and wrong locally**: at household size one the
+  median Gemeinde's cap sits 0.2% above it, while the tenth and ninetieth percentiles
+  sit 16.7% below and 23.4% above.
 - The statutory **Mietenstufe cannot repair this**. It accounts for about 41% of the
-  variation in local caps — less than simply knowing the Bundesland.
+  variation in local caps — less than knowing the Bundesland alone accounts for.
 - The variation it misses is **not administrative noise**. Within a Mietenstufe, where
   the fallback is constant by construction, local caps still track actual Zensus market
   rents.
@@ -84,6 +84,6 @@ Actual costs are recognised where they are angemessen, so entitlement depends fu
 actual rent, income, household composition, and Karenz- and Härtefallregelungen.
 
 Where a cap equals the Wohngeld-Höchstbetrag times 1.10 exactly, we suspect the Kreis
-simply applies the fallback, which would make the measured departure an arithmetic
+applies the fallback unchanged, which would make the measured departure an arithmetic
 identity rather than a finding. Those documents have not been located, so this remains a
 suspicion and every result is reported both including and excluding those Kreise.

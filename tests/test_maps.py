@@ -62,7 +62,7 @@ def kdu_caps() -> pd.DataFrame:
 
 @pytest.fixture
 def wohngeld_fallback() -> pd.DataFrame:
-    """A benchmark of 400 euro at every size, so ratios are easy to state."""
+    """A benchmark of 400 euro at every size, so every ratio is a round number."""
     return pd.DataFrame(
         {
             "ags": ["01001000"] * 5 + ["01002000"] * 5,
@@ -151,7 +151,7 @@ def test_merge_without_duplicating_rejects_a_right_frame_with_repeated_keys() ->
 
 
 def test_every_registered_map_measure_resolves_to_a_specification() -> None:
-    """The catalog's measure names and the measure registry stay in step."""
+    """The catalog's measure names and the measure registry agree."""
     assert tuple(get_measure(key).key for key in MAP_MEASURES) == MAP_MEASURES
 
 

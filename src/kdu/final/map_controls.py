@@ -7,8 +7,8 @@ size. The controls are therefore two HTML `select` elements that hold the
 selected pair themselves and restyle the single measure trace.
 
 Holding one trace rather than one per combination matters for file size: the
-boundary collection is serialised once per trace, and it is far larger than the
-values drawn on top of it.
+boundary collection is serialised once per trace, and it is more than an order of
+magnitude larger than one measure's values at every household size together.
 """
 
 import json

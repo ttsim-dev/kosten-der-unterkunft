@@ -1,4 +1,4 @@
-"""How much of a Gemeinde's rented housing stock each cap places beyond reach.
+"""How much of a Gemeinde's rented housing stock each cap prices above itself.
 
 A cap on the recognisable Bruttokaltmiete divides the local rental stock in
 two: dwellings a claimant may rent while having the rent recognised in full,
@@ -33,8 +33,9 @@ Three properties of the measurement bound what it can be asked to support.
   Kreis reports none, the Bedarfsgemeinschaft-weighted national mean stands in.
 - The count covers the **whole rented stock**, not only dwellings within the
   admissible Wohnfläche for the household size in question. A single person
-  may not rent a 120 square metre dwelling at any price, so the accessible
-  share of dwellings that are actually eligible is smaller than reported.
+  may not rent a 120 square metre dwelling at any price, so the share of
+  dwellings both priced within the cap and within the admissible Wohnfläche is
+  smaller than the reported share below the cap.
 
 Every function here is a pure function of the frames handed to it; the pytask
 wrapper in {mod}`kdu.market_rent_comparison.task_share_of_stock_above_cap`
@@ -233,7 +234,7 @@ def share_above_threshold(
 
 
 def summarise_shares(gemeinde_shares: pd.DataFrame) -> pd.DataFrame:
-    """Summarise the two off-limits shares and their difference by household size.
+    """Summarise the two shares priced above the cap, and their difference, by size.
 
     Args:
         gemeinde_shares: The output of {func}`build_gemeinde_shares`.
@@ -272,7 +273,7 @@ def share_of_stock_above_cap_figure(gemeinde_shares: pd.DataFrame) -> go.Figure:
         gemeinde_shares: The output of {func}`build_gemeinde_shares`.
 
     Returns:
-        A figure with the two off-limits share distributions above and the
+        A figure with the two priced-above-the-cap distributions above and the
         per-Gemeinde difference between them below, at household size one.
 
     """

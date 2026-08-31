@@ -13,8 +13,8 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-# Quantile bounds of the displayed colour range, so that a handful of extreme
-# Gemeinden cannot flatten the scale everywhere else.
+# Quantile bounds of the displayed colour range, so that the most extreme 2 % of
+# Gemeinden at either end cannot compress the scale for the remaining 96 %.
 LOWER_DISPLAY_QUANTILE = 0.02
 UPPER_DISPLAY_QUANTILE = 0.98
 

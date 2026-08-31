@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 from kdu.hatching import build_hatch_geojson
 from kdu.measures import MEASURES, MeasureSpec, compute_colour_range
 
-# Where the map opens, and how far in.
+# The centre and the zoom level the map opens at.
 GERMANY_CENTRE = {"lat": 51.2, "lon": 10.4}
 GERMANY_ZOOM = 4.7
 
@@ -120,7 +120,7 @@ def build_map_frame(
 
 @dataclass(frozen=True)
 class MeasureDisplay:
-    """Everything the figure needs to draw one measure at one household size."""
+    """The values, colour range, title and colour bar of one displayed measure."""
 
     measure_values: list[float | None]
     """Measure values in feature order."""

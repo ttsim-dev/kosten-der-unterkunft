@@ -250,7 +250,10 @@ def _download(url: str, path: Path) -> bytes:
 
 
 _BACKOFF_SECONDS = (30, 60, 120, 240, 480)
-"""Waits between retries. The portal answers 403 once a run fetches too quickly."""
+"""Waits between retries, in seconds.
+
+The portal answers 403, 429 or 503 when a run requests faster than it serves.
+"""
 
 
 def _get(url: str) -> bytes:

@@ -33,7 +33,7 @@ from kdu.weighting import weighted_quantile, weighted_standard_deviation
 
 pio.templates.default = "plotly_dark"
 
-# The household size the headline dispersion and variance shares are read at.
+# The household size the reported dispersion and variance shares are read at.
 # Single-person households are the size every Träger publishes.
 REFERENCE_HOUSEHOLD_SIZE = 1
 

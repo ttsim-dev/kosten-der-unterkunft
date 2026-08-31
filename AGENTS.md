@@ -16,9 +16,10 @@ the Wohngeld-Höchstbetrag times 1.10 — the standard the Bundessozialgericht p
 where a Kreis has published no schlüssiges Konzept. The project reports six results and
 one interactive map.
 
-The central finding: the fallback is almost exactly right on average and badly wrong
-locally, and the statutory Mietenstufe cannot repair that, because it accounts for under
-half the variation in local caps while the residual variation still tracks actual market
+The central finding: at household size one the median Gemeinde's cap sits 0.2 % above
+the fallback while the tenth and ninetieth percentiles sit 16.7 % below and 23.4 % above
+it, and the statutory Mietenstufe cannot repair that, because it accounts for 41 % of
+the variation in local caps while the residual variation still tracks actual market
 rents.
 
 ## Build and test
@@ -42,7 +43,7 @@ committed.
 | `kdu_vs_wohngeld`        | How far do local caps depart from the statutory fallback, in level and across household sizes within one Gemeinde? |
 | `kdu_vs_wohngeld`        | How much variation in local caps does the Mietenstufe leave unaccounted for? *(lead result)*                       |
 | `market_rent_comparison` | Do local caps track actual local market rents where the fallback structurally cannot?                              |
-| `market_rent_comparison` | How much of the local rented stock does each cap place beyond reach?                                               |
+| `market_rent_comparison` | How much of the local rented stock does each cap price above itself?                                               |
 | `eligibility`            | By how much does the choice of cap move the gross income at which a household leaves the transfer system?          |
 | `validation`             | Do the collected caps agree with what Jobcenter actually recognise?                                                |
 
@@ -86,7 +87,7 @@ Every computation and every figure is a pure function in a sibling module.
 
 `bld/data/wohnkostenstatistik.parquet` and `bld/data/zensus_rents.parquet` carry the two
 external sources. Every other subdirectory of `bld/` belongs to one package and holds
-only what that package produces. All of `bld/` is disposable: nothing in it is expensive
+only what that package produces. All of `bld/` is disposable: nothing in it takes long
 to rebuild, because nothing in it is downloaded.
 
 ## Conventions that are not negotiable
@@ -100,7 +101,7 @@ Kreis Steinfurt has 24 Gemeinden and 23 distinct caps under a single directive. 
 Kreis is the Träger that decides; it is not the unit at which the rule applies. Do not
 treat a Kreis as one observation without saying why.
 
-**Some Kreise are suspected of simply applying the fallback.** Where a cap equals the
+**Some Kreise are suspected of applying the fallback unchanged.** Where a cap equals the
 Wohngeld-Höchstbetrag times 1.10 the departure is an arithmetic identity rather than a
 finding. We have not located those documents, so this is a suspicion, not a fact:
 `wohngeld_rule_suspected` marks them and every result is reported both including and

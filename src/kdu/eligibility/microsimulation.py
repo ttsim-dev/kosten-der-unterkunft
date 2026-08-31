@@ -19,7 +19,7 @@ additional euro, because Steuern and Sozialversicherungsbeiträge intervene, and
 because the household may pass from Bürgergeld into Wohngeld on the way out. The
 resulting amplification is the quantity this module reports.
 
-The public surface is:
+This module exports:
 
 - `distinct_cap_pairs` and `assign_cap_pairs` — one evaluation per distinct
   combination of local cap and Mietenstufe rather than one per Gemeinde

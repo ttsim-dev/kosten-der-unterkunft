@@ -7,5 +7,5 @@ which the caps themselves vary.
 - {mod}`kdu.market_rent_comparison.market_rent_correlation` asks whether
   either cap tracks the local rent level.
 - {mod}`kdu.market_rent_comparison.share_of_stock_above_cap` asks how much
-  of the local rented stock each cap places beyond reach.
+  of the local rented stock each cap prices above itself.
 """

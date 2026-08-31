@@ -17,12 +17,12 @@ everything from those extracts alone, offline and reproducibly.
 
 The published sources are far too large to store here:
 
-| source  | download  |
-| --- | --- |
-| BA "Wohn- und Kostensituation" | roughly 1.5 GB across a few thousand requests — one workbook per region and reference month |
-| OpenDataSoft `georef-germany-gemeinde` | ~58 MB of full-resolution boundaries |
-| Zensus 2022 Regionaltabelle | a 21 MB workbook  |
-| Destatis GV-ISys Jahresausgabe | two annual editions |
+| source                                 | download                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------- |
+| BA "Wohn- und Kostensituation"         | roughly 1.5 GB across a few thousand requests — one workbook per region and reference month |
+| OpenDataSoft `georef-germany-gemeinde` | ~58 MB of full-resolution boundaries                                                        |
+| Zensus 2022 Regionaltabelle            | a 21 MB workbook                                                                            |
+| Destatis GV-ISys Jahresausgabe         | two annual editions                                                                         |
 
 What is committed is the extract, not the original: 3.2 MB of BA CSVs instead of 1.5 GB
 of Excel, an 8.2 MB boundary file simplified to a ~1 km grid instead of 58 MB of raw
@@ -40,9 +40,9 @@ own methodological notes and nothing else reproduces them.
 
 ## What each script writes
 
-| script | writes |
-| --- | --- |
-| `prepare_gemeinden.py`| `data/gemeinden.geo.json`, `data/gemeinde_lookup.arrow`|
-| `fetch_gemeinde_population.py` | `data/gemeinde_population.arrow`|
-| `fetch_zensus_mieten.py` | `data/zensus/zensus2022_nettokaltmiete_gemeinden.csv` and its manifest|
-| `fetch_ba_wohnkosten.py` | `data/ba_wohnkosten/` — the reference-month extract, the twelve-month average, the national workbook and the manifest |
+| script                         | writes                                                                                                                |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `prepare_gemeinden.py`         | `data/gemeinden.geo.json`, `data/gemeinde_lookup.arrow`                                                               |
+| `fetch_gemeinde_population.py` | `data/gemeinde_population.arrow`                                                                                      |
+| `fetch_zensus_mieten.py`       | `data/zensus/zensus2022_nettokaltmiete_gemeinden.csv` and its manifest                                                |
+| `fetch_ba_wohnkosten.py`       | `data/ba_wohnkosten/` — the reference-month extract, the twelve-month average, the national workbook and the manifest |

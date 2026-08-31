@@ -76,7 +76,7 @@ _FORBIDDEN_MEASURE_SUBSTRINGS: tuple[str, ...] = (
 
 @dataclass(frozen=True)
 class BaWorkbookIdentity:
-    """Everything about a workbook that is not in its data rows.
+    """The region and reference month one workbook describes.
 
     Attributes are carried into every parsed row so the long table stays keyed.
     """
@@ -123,7 +123,7 @@ def load_ba_workbook(path: Path, identity: BaWorkbookIdentity) -> pd.DataFrame:
 def average_over_months(
     long_frames: Sequence[pd.DataFrame], label: str
 ) -> pd.DataFrame:
-    """Average a stack of monthly long frames into the §14.1 annual-average variant.
+    """Average one long frame per month into the §14.1 annual-average variant.
 
     Args:
         long_frames: One long frame per reference month, same regions and measures.

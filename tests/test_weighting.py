@@ -20,7 +20,7 @@ def test_weighted_mean_matches_hand_computation() -> None:
 
 
 def test_weighted_mean_ignores_rows_with_a_missing_value() -> None:
-    """A missing value drops its row rather than poisoning the whole mean."""
+    """A missing value drops its row rather than making the whole mean missing."""
     values = pd.Series([10.0, np.nan, 20.0])
     weights = pd.Series([1.0, 99.0, 1.0])
     assert weighted_mean(values, weights) == pytest.approx(15.0)

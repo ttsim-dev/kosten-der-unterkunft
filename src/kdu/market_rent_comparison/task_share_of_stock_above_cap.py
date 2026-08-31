@@ -33,7 +33,7 @@ def task_share_of_stock_above_cap(
     table_file: Annotated[Path, Product] = SHARES_TABLE,
     figure_file: Annotated[Path, Product] = SHARES_FIGURE,
 ) -> None:
-    """Count the rented dwellings each cap places beyond reach, per Gemeinde."""
+    """Count the rented dwellings each cap prices above itself, per Gemeinde."""
     gemeinde_shares = build_gemeinde_shares(
         pd.read_parquet(kdu_caps_file),
         pd.read_parquet(wohngeld_fallback_file),

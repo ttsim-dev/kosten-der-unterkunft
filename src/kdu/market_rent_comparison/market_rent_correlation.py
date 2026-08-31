@@ -16,10 +16,11 @@ The comparison is deliberately asymmetric, and the asymmetry is the result:
   correlation with market rents there is zero by construction. The local cap
   is unconstrained in that space and still follows the local rent level.
 
-The second row is therefore not evidence that the fallback fails a test. It
-is evidence that the local caps pass a test the fallback is unable to sit,
-and that the variation they carry within a Mietenstufe corresponds to
-something measured in the housing stock rather than to administrative noise.
+The second row is therefore not a failing of the fallback measured against
+something it could have done. It states that the local caps carry variation
+within a Mietenstufe which the fallback cannot carry at all, and that this
+variation corresponds to something measured in the housing stock rather than
+to administrative noise.
 
 Every function here is a pure function of the frames handed to it; the pytask
 wrapper in {mod}`kdu.market_rent_comparison.task_market_rent_correlation`

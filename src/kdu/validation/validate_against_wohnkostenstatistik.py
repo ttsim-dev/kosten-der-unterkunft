@@ -23,9 +23,10 @@ Three properties govern how the resulting number may be read.
   percent of households losing nothing while ten percent lose a great deal. No
   statement about a share of affected households may be derived from it.
 - **The correlation is attenuated by construction.** A constraint that binds
-  for a small part of the reported costs has a correspondingly weak correlate.
-  A correlation near a quarter confirms that the caps point in the right
-  direction; it is not evidence that caps account for non-recognition.
+  for a small part of the reported costs produces a correspondingly weak
+  correlation. A correlation near a quarter confirms that a tighter cap goes
+  with a larger unrecognised share; it is not evidence that caps account for
+  non-recognition.
 - **Market pressure is measured independently of the Bundesagentur figures.**
   `non_recognised_share` is one minus recognised over actual Bruttokaltmiete,
   so the actual Bruttokaltmiete already appears in it. Correlating it against a

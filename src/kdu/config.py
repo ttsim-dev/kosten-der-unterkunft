@@ -4,7 +4,7 @@ This module is the single place where a year, a Rechtsstand, a statutory
 threshold, a model-household assumption, or a grid parameter may appear.
 Analysis modules import from here; they never hard-code such a value.
 
-The public surface is:
+This module exports:
 
 - paths — `SRC`, `ROOT`, `DATA`, `BLD`, the per-package result directories,
   and `corpus_root`
@@ -368,7 +368,7 @@ DATA_CATALOG.add(
 )
 
 # Whether local caps track local market rents, and how much of the local
-# rented stock each cap places out of reach.
+# rented stock each cap prices above itself.
 DATA_CATALOG.add(
     "market_rent_correlation_figure",
     MARKET_RENT_COMPARISON / "market_rent_correlation.html",
