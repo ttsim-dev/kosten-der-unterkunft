@@ -13,6 +13,8 @@ Switching to the second window: `bld/map/germany_map.html`
 
 <br/>
 
+**9,471 of 10,980 Gemeinden carry a one-person cap.**
+
 Hatching marks a **Härtefallregelung**. The selector on the side changes the
 household size.
 

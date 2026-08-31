@@ -8,13 +8,13 @@ info: |
 drawings:
   persist: false
 transition: fade
-title: Half of the Regelbedarf Is Not in Any Law
+title: The Parameter GETTSIM Cannot Look Up
 mdc: true
 defaults:
   layout: center
 ---
 
-# Half of the Regelbedarf Is Not in Any Law
+# The Parameter GETTSIM Cannot Look Up
 
 ### Local Kosten der Unterkunft and what they do to a tax-transfer model
 

@@ -10,7 +10,7 @@ BA Wohnkostenstatistik, single Bedarfsgemeinschaften:
 | unrecognised share of euros | **3.9 %** |
 | Bedarfsgemeinschaft-weighted | **3.5 %** |
 
-Existing claimants already sit under their cap, so `min(rent, cap)` does not bind.
+Across the incumbent caseload, **3.5 %** of reported Bruttokaltmiete euros go unrecognised.
 
 - It is a share of **euros, not of households** — equally consistent with 90 % losing
   nothing and 10 % losing a great deal.
