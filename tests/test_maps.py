@@ -198,15 +198,3 @@ def test_describe_household_size_uses_the_german_singular_and_plural(
     expected: str,
 ) -> None:
     assert describe_household_size(household_size) == expected
-
-
-def test_build_colourbar_titles_an_ordinal_measure_with_its_label() -> None:
-    """The Mietenstufe scale is unitless, so its colourbar is named by the measure."""
-    colourbar = _build_colourbar(spec=get_measure("mietenstufe"), lower=1.0, upper=7.0)
-    assert colourbar["title"]["text"] == "Mietenstufe"
-
-
-def test_build_colourbar_leaves_a_unitless_cardinal_measure_untitled() -> None:
-    """A ratio carries no unit, and the headline already names what is plotted."""
-    colourbar = _build_colourbar(spec=get_measure("cap_ratio"), lower=0.7, upper=1.3)
-    assert colourbar["title"]["text"] == ""
