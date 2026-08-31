@@ -122,12 +122,6 @@ MIETENSTUFEN: tuple[int, ...] = (1, 2, 3, 4, 5, 6, 7)
 # departs from.
 WOHNGELD_FALLBACK_MARKUP = 1.10
 
-# Tolerance on the ratio of local cap to Höchstbetrag when detecting the Kreise
-# that appear to apply the fallback unchanged. 5e-4 isolates the Gemeinden
-# sitting exactly at the markup; a looser 0.005 additionally admits Kreise that
-# merely happen to land near 1.10.
-WOHNGELD_FALLBACK_MARKUP_TOLERANCE = 5e-4
-
 
 class MemberRole(StrEnum):
     """What a model-household member is, for benefit purposes."""

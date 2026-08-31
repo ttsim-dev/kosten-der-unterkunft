@@ -33,7 +33,6 @@ def _frame(rents: list[float], mietenstufen: list[int]) -> tuple[pd.DataFrame, .
             "household_size": [1] * n,
             "mietenstufe": mietenstufen,
             "wohngeld_fallback_cap": [300.0 + 50.0 * stufe for stufe in mietenstufen],
-            "wohngeld_rule_suspected": [False] * n,
         },
     )
     zensus_rents = pd.DataFrame(

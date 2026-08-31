@@ -6,31 +6,20 @@ each rent concept. This module reshapes it to one row per Gemeinde and
 household size, and settles the one substantive question the wide table leaves
 open: which euro amount is the Bruttokaltmiete cap.
 
-Two constructions carry the analytical weight:
-
-- {func}`build_kdu_cap` — a cap is either published as a Bruttokaltmiete total
-  or summed from a published Nettokaltmiete and a published kalte-Betriebskosten
-  cap. Nothing is multiplied out from a euro-per-square-metre figure, scaled, or
-  imputed from a national average: several documents state an explicit
-  Ableitungsverbot, and the collectors already left the cell empty where a
-  derivation is forbidden.
-- {func}`detect_wohngeld_rule` — which Kreise appear to apply the statutory
-  fallback rather than a Konzept of their own. This is a suspicion read off the
-  published figures and the collectors' notes, never a verified fact.
+{func}`build_kdu_cap` carries the analytical weight: a cap is either published
+as a Bruttokaltmiete total or summed from a published Nettokaltmiete and a
+published kalte-Betriebskosten cap. Nothing is multiplied out from a
+euro-per-square-metre figure, scaled, or imputed from a national average:
+several documents state an explicit Ableitungsverbot, and the collectors
+already left the cell empty where a derivation is forbidden.
 """
 
-import re
-from collections.abc import Mapping
 from enum import StrEnum
 from pathlib import Path
 
 import pandas as pd
 
-from kdu.config import (
-    HOUSEHOLD_SIZES,
-    WOHNGELD_FALLBACK_MARKUP,
-    WOHNGELD_FALLBACK_MARKUP_TOLERANCE,
-)
+from kdu.config import HOUSEHOLD_SIZES
 
 # Digits in the Gemeinde AGS, leading zeros included.
 AGS_LENGTH = 8
@@ -40,10 +29,6 @@ KREIS_AGS_LENGTH = 5
 
 # Two euro amounts count as equal when they differ by less than half a cent.
 CENT_TOLERANCE = 0.005
-
-# How many household sizes must sit at the markup before the ratio detector
-# fires. One coincidence is not evidence of a rule.
-MIN_HOUSEHOLD_SIZES_AT_MARKUP = 2
 
 # Columns of `kdu_caps.parquet`, in order.
 KDU_CAP_COLUMNS: tuple[str, ...] = (
@@ -168,85 +153,6 @@ def build_kdu_cap(long_frame: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame({"kdu_cap": cap, "calculation_method": method})
 
 
-# Wording in the collectors' notes that names the statutory fallback.
-FALLBACK_NOTES_PATTERN = re.compile(
-    r"sicherheitszuschlag"
-    r"|sicherungszuschlag"
-    r"|wohngeldtabelle"
-    r"|wogg[\s\-]?tabelle"
-    r"|§\s*12\s*wogg"
-    r"|wogg\s*mietstufe"
-    r"|wogg\s*\d{2}\.\d{2}\.\d{4}"
-    r"|(?:inkl\.?|zzgl\.?|\+)\s*10\s*%\s*(?:sicherheits|sicherungs)?zuschlag"
-    r"|wohngeld.{0,20}h(?:ö|oe)chstbetr",
-    re.IGNORECASE,
-)
-
-
-def detect_wohngeld_rule(
-    caps: pd.DataFrame,
-    hoechstbetrag: pd.DataFrame,
-    notes: pd.Series,
-) -> pd.DataFrame:
-    """Mark the Gemeinden whose Kreis appears to apply the statutory fallback.
-
-    Two independent readings are combined. The first looks for the
-    Sicherheitszuschlag wording in the collectors' notes. The second tests
-    whether the local cap sits at exactly the 10 % markup on the Anlage 1
-    Höchstbetrag at every household size where both figures exist.
-
-    Neither reading is proof. The Richtlinien of these Kreise were not
-    obtained, so the project cannot confirm that the fallback is what they
-    apply; results are therefore reported both including and excluding these
-    Gemeinden rather than treating either set as the truth.
-
-    Args:
-        caps: Long cap table with `ags`, `household_size` and `kdu_cap`.
-        hoechstbetrag: Long table with `ags`, `household_size` and
-            `wohngeld_hoechstbetrag`.
-        notes: The collectors' notes, indexed like `caps`.
-
-    Returns:
-        One row per Gemeinde with `ags` and `wohngeld_rule_suspected`.
-
-    """
-    ratio = caps["kdu_cap"] / hoechstbetrag["wohngeld_hoechstbetrag"]
-    at_markup = (
-        (ratio - WOHNGELD_FALLBACK_MARKUP)
-        .abs()
-        .le(
-            WOHNGELD_FALLBACK_MARKUP_TOLERANCE,
-        )
-    )
-    per_gemeinde = (
-        pd.DataFrame(
-            {
-                "ags": caps["ags"],
-                "notes_name_the_fallback": notes.fillna("")
-                .str.contains(FALLBACK_NOTES_PATTERN, regex=True)
-                .to_numpy(),
-                "has_ratio": ratio.notna().to_numpy(),
-                "at_markup": (at_markup & ratio.notna()).to_numpy(),
-            },
-        )
-        .groupby("ags", as_index=False)
-        .agg(
-            by_notes=("notes_name_the_fallback", "any"),
-            n_ratios=("has_ratio", "sum"),
-            n_at_markup=("at_markup", "sum"),
-        )
-    )
-    enough_sizes = per_gemeinde["n_ratios"].ge(MIN_HOUSEHOLD_SIZES_AT_MARKUP)
-    every_size_at_markup = per_gemeinde["n_at_markup"].eq(per_gemeinde["n_ratios"])
-    by_ratio = enough_sizes & every_size_at_markup
-    return pd.DataFrame(
-        {
-            "ags": per_gemeinde["ags"],
-            "wohngeld_rule_suspected": per_gemeinde["by_notes"] | by_ratio,
-        },
-    )
-
-
 def source_identifier(source_document: pd.Series) -> pd.Series:
     """Derive a stable identifier from a cited document's filename.
 
@@ -337,23 +243,6 @@ def _as_float(column: pd.Series) -> pd.Series:
     otherwise be inferred as integers and refuse to stack with the rest.
     """
     return pd.to_numeric(column, errors="coerce").astype("Float64")
-
-
-def notes_by_row(wide: pd.DataFrame, caps: pd.DataFrame) -> pd.Series:
-    """Align the collectors' notes with the rows of the long cap table.
-
-    Args:
-        wide: The committed wide table.
-        caps: The long cap table, keyed `ags` by `household_size`.
-
-    Returns:
-        The `notes` text of each row's Gemeinde, indexed like `caps`.
-
-    """
-    by_ags: Mapping[str, str] = dict(
-        zip(wide["ags_gemeinde"], wide["notes"].fillna(""), strict=True),
-    )
-    return caps["ags"].map(by_ags).astype("string")
 
 
 def _fail_if_kreis_prefix_mismatch(frame: pd.DataFrame) -> None:

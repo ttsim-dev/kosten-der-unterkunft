@@ -14,7 +14,6 @@ from kdu.kdu_vs_wohngeld.cap_comparison import (
     cap_ratio_spread_across_household_sizes,
     plot_cap_ratio_distribution,
     plot_cap_ratio_spread_distribution,
-    stack_populations,
     summarise_cap_ratio,
     summarise_cap_ratio_spread,
 )
@@ -43,15 +42,14 @@ def task_cap_comparison(
         frame,
         bedarfsgemeinschaft_weights(pd.read_parquet(wohnkostenstatistik_file)),
     )
-    by_population = stack_populations(weighted)
-    spread = stack_populations(cap_ratio_spread_across_household_sizes(frame))
+    spread = cap_ratio_spread_across_household_sizes(frame)
 
     table = pd.concat(
-        [summarise_cap_ratio(by_population), summarise_cap_ratio_spread(spread)],
+        [summarise_cap_ratio(weighted), summarise_cap_ratio_spread(spread)],
         ignore_index=True,
     )
 
     distribution_file.parent.mkdir(parents=True, exist_ok=True)
-    plot_cap_ratio_distribution(by_population).write_html(distribution_file)
+    plot_cap_ratio_distribution(weighted).write_html(distribution_file)
     plot_cap_ratio_spread_distribution(spread).write_html(spread_file)
     table.to_csv(table_file, index=False)

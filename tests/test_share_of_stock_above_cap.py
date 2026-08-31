@@ -107,7 +107,6 @@ def test_build_gemeinde_shares_reports_the_difference_between_the_two_caps() -> 
             "household_size": [1],
             "mietenstufe": [3],
             "wohngeld_fallback_cap": [400.0],
-            "wohngeld_rule_suspected": [False],
         },
     )
     zensus_rents = pd.DataFrame(

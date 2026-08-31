@@ -6,7 +6,6 @@ import pytest
 from kdu.data_management.clean_kdu_regions import (
     CalculationMethod,
     build_kdu_cap,
-    detect_wohngeld_rule,
     source_identifier,
 )
 
@@ -61,51 +60,6 @@ def test_a_nettokaltmiete_without_a_cold_cost_cap_yields_no_cap() -> None:
     assert (
         result["calculation_method"].iloc[0] == CalculationMethod.NOT_CONSTRUCTED.value
     )
-
-
-def test_a_kreis_at_the_markup_at_every_size_is_suspected_of_the_fallback() -> None:
-    """Caps of exactly 1.10 times the Höchstbetrag at both sizes raise the suspicion."""
-    caps = pd.DataFrame(
-        {
-            "ags": ["01001000", "01001000"],
-            "household_size": [1, 2],
-            "kdu_cap": [550.0, 660.0],
-        },
-    )
-    hoechstbetrag = pd.DataFrame({"wohngeld_hoechstbetrag": [500.0, 600.0]})
-    notes = pd.Series(["", ""])
-    result = detect_wohngeld_rule(caps, hoechstbetrag, notes)
-    assert bool(result["wohngeld_rule_suspected"].iloc[0]) is True
-
-
-def test_a_kreis_away_from_the_markup_is_not_suspected() -> None:
-    """Caps unrelated to the Höchstbetrag leave the suspicion unraised."""
-    caps = pd.DataFrame(
-        {
-            "ags": ["01002000", "01002000"],
-            "household_size": [1, 2],
-            "kdu_cap": [486.0, 540.0],
-        },
-    )
-    hoechstbetrag = pd.DataFrame({"wohngeld_hoechstbetrag": [500.0, 600.0]})
-    notes = pd.Series(["", ""])
-    result = detect_wohngeld_rule(caps, hoechstbetrag, notes)
-    assert bool(result["wohngeld_rule_suspected"].iloc[0]) is False
-
-
-def test_notes_naming_the_sicherheitszuschlag_raise_the_suspicion() -> None:
-    """The collectors' wording is a reading of its own, independent of the ratio."""
-    caps = pd.DataFrame(
-        {
-            "ags": ["01003000"],
-            "household_size": [1],
-            "kdu_cap": [486.0],
-        },
-    )
-    hoechstbetrag = pd.DataFrame({"wohngeld_hoechstbetrag": [500.0]})
-    notes = pd.Series(["Wohngeldtabelle zzgl. 10 % Sicherheitszuschlag"])
-    result = detect_wohngeld_rule(caps, hoechstbetrag, notes)
-    assert bool(result["wohngeld_rule_suspected"].iloc[0]) is True
 
 
 def test_source_identifier_is_a_lowercase_slug_of_the_filename() -> None:

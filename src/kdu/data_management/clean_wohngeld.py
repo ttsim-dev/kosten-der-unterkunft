@@ -36,7 +36,6 @@ WOHNGELD_FALLBACK_COLUMNS: tuple[str, ...] = (
     "mietenstufe",
     "wohngeld_hoechstbetrag",
     "wohngeld_fallback_cap",
-    "wohngeld_rule_suspected",
 )
 
 
@@ -65,7 +64,6 @@ class WohngeldParameters:
 def build_wohngeld_fallback(
     mietenstufen: pd.DataFrame,
     parameters: WohngeldParameters,
-    wohngeld_rule_suspected: pd.DataFrame,
 ) -> pd.DataFrame:
     """Expand every Gemeinde to the benchmark at each household size.
 
@@ -73,8 +71,6 @@ def build_wohngeld_fallback(
         mietenstufen: One row per Gemeinde, with an eight-digit string `ags`
             and the statutory `mietenstufe` as a nullable integer.
         parameters: The parameters from {func}`load_wohngeld_parameters`.
-        wohngeld_rule_suspected: One row per Gemeinde with `ags` and the
-            boolean `wohngeld_rule_suspected`.
 
     Returns:
         `len(mietenstufen) * len(HOUSEHOLD_SIZES)` rows with
@@ -100,54 +96,11 @@ def build_wohngeld_fallback(
     result["wohngeld_fallback_cap"] = (
         result["wohngeld_hoechstbetrag"] * WOHNGELD_FALLBACK_MARKUP
     )
-    result = result.merge(
-        wohngeld_rule_suspected[["ags", "wohngeld_rule_suspected"]],
-        on="ags",
-        how="left",
-        validate="many_to_one",
-    )
-    result["wohngeld_rule_suspected"] = (
-        result["wohngeld_rule_suspected"].fillna(value=False).astype(bool)
-    )
     return (
         result.loc[:, list(WOHNGELD_FALLBACK_COLUMNS)]
         .sort_values(["ags", "household_size"])
         .reset_index(drop=True)
     )
-
-
-def build_hoechstbetrag_only(
-    mietenstufen: pd.DataFrame,
-    parameters: WohngeldParameters,
-) -> pd.DataFrame:
-    """Expand every Gemeinde to the bare Höchstbetrag at each household size.
-
-    Detecting which Kreise apply the statutory fallback needs the Höchstbetrag
-    before the suspicion itself is known, so this shorter construction is
-    available on its own.
-
-    Args:
-        mietenstufen: One row per Gemeinde with `ags` and `mietenstufe`.
-        parameters: The parameters from {func}`load_wohngeld_parameters`.
-
-    Returns:
-        Rows keyed `ags` by `household_size`, with `wohngeld_hoechstbetrag`.
-
-    """
-    _fail_if_key_columns_missing(mietenstufen)
-    frame = mietenstufen[["ags", "mietenstufe"]].merge(
-        pd.DataFrame({"household_size": pd.array(HOUSEHOLD_SIZES, dtype="Int64")}),
-        how="cross",
-    )
-    result = pd.DataFrame(index=frame.index)
-    result["ags"] = frame["ags"].astype("string")
-    result["household_size"] = frame["household_size"].astype("Int64")
-    result["wohngeld_hoechstbetrag"] = _lookup_hoechstbetrag(
-        frame["mietenstufe"].astype("Int64"),
-        result["household_size"],
-        parameters,
-    )
-    return result.sort_values(["ags", "household_size"]).reset_index(drop=True)
 
 
 def load_wohngeld_parameters(path: Path) -> WohngeldParameters:

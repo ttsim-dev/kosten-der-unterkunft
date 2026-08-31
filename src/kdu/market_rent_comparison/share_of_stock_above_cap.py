@@ -140,7 +140,7 @@ def build_gemeinde_shares(
 
     result = frame.loc[
         :,
-        ["ags", "household_size", "mietenstufe", "wohngeld_rule_suspected"],
+        ["ags", "household_size", "mietenstufe"],
     ].copy()
     for name, cap_column in (
         ("local_kdu_cap", "kdu_cap"),
@@ -351,7 +351,6 @@ def _join_caps_to_rent_bands(
             "household_size",
             "mietenstufe",
             "wohngeld_fallback_cap",
-            "wohngeld_rule_suspected",
         ],
     ]
     rents = zensus_rents.loc[:, ["ags", *(band.column for band in RENT_BANDS)]]

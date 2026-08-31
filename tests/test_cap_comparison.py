@@ -6,12 +6,10 @@ import pytest
 
 from kdu.config import WeightingScheme
 from kdu.kdu_vs_wohngeld.cap_comparison import (
-    AnalysisPopulation,
     attach_weights,
     bedarfsgemeinschaft_weights,
     build_cap_comparison,
     cap_ratio_spread_across_household_sizes,
-    stack_populations,
 )
 
 
@@ -35,7 +33,6 @@ def fallback() -> pd.DataFrame:
             "ags": ["01001000", "01001000", "01002000", "01002000"],
             "household_size": [1, 2, 1, 2],
             "wohngeld_fallback_cap": [400.0, 500.0, 500.0, None],
-            "wohngeld_rule_suspected": [False, False, True, True],
         },
     )
 
@@ -103,7 +100,6 @@ def test_cap_ratio_spread_is_the_largest_minus_the_smallest_ratio() -> None:
             "ags": ["01001000"] * 4,
             "household_size": [1, 2, 3, 4],
             "cap_ratio": [1.00, 1.05, 0.98, 1.02],
-            "wohngeld_rule_suspected": [False] * 4,
         },
     )
     spread = cap_ratio_spread_across_household_sizes(frame)
@@ -117,7 +113,6 @@ def test_cap_ratio_spread_omits_a_gemeinde_missing_a_household_size() -> None:
             "ags": ["01001000"] * 3,
             "household_size": [1, 2, 3],
             "cap_ratio": [1.00, 1.05, 0.98],
-            "wohngeld_rule_suspected": [False] * 3,
         },
     )
     assert cap_ratio_spread_across_household_sizes(frame).empty
@@ -153,17 +148,3 @@ def test_attach_weights_gives_zero_weight_to_an_unreported_kreis(
     )
     weighted = attach_weights(frame, empty)
     assert weighted[WeightingScheme.BEDARFSGEMEINSCHAFT.value].eq(0.0).all()
-
-
-def test_stack_populations_repeats_only_the_unsuspected_rows(
-    caps: pd.DataFrame,
-    fallback: pd.DataFrame,
-    gemeinden: pd.DataFrame,
-) -> None:
-    """Two of four rows are suspected, so the second population holds two rows."""
-    frame = build_cap_comparison(caps, fallback, gemeinden)
-    stacked = stack_populations(frame)
-    retained = stacked.loc[
-        stacked["population"] == AnalysisPopulation.EXCLUDING_SUSPECTED_FALLBACK.value
-    ]
-    assert len(retained) == 2

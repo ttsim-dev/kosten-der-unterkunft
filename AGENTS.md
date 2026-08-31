@@ -101,11 +101,10 @@ Kreis Steinfurt has 24 Gemeinden and 23 distinct caps under a single directive. 
 Kreis is the Träger that decides; it is not the unit at which the rule applies. Do not
 treat a Kreis as one observation without saying why.
 
-**Some Kreise are suspected of applying the fallback unchanged.** Where a cap equals the
-Wohngeld-Höchstbetrag times 1.10 the departure is an arithmetic identity rather than a
-finding. We have not located those documents, so this is a suspicion, not a fact:
-`wohngeld_rule_suspected` marks them and every result is reported both including and
-excluding them, as co-equal versions.
+**Some caps equal the fallback exactly.** Where a cap is the Wohngeld-Höchstbetrag times
+1.10, its departure is an arithmetic identity rather than a finding. Those Richtlinien
+were never obtained, so the project does not claim to know which Kreise apply the
+fallback and does not separate them out. Every result covers every Gemeinde.
 
 **Language.** No abbreviations in identifiers or prose. German legal terms of art —
 Bruttokaltmiete, Mietenstufe, Bedarfsgemeinschaft, Härtefallregelung — stay German and

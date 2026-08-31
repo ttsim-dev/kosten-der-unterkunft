@@ -11,18 +11,9 @@ here, in two ways:
   states how far a single per-Gemeinde correction factor can carry a
   tax-transfer model that has only the fallback.
 
-Every distribution is reported for two populations at once. Some Kreise appear
-to apply the fallback unchanged, in which case their ratio is one by
-construction rather than by decision — but the documents that would settle
-this were not found, so the suspicion is unverified and neither population is
-subordinate to the other.
-
 The functions here are pure: they take frames and return frames or figures.
 {mod}`kdu.kdu_vs_wohngeld.task_cap_comparison` owns the reading and writing.
 """
-
-from enum import StrEnum
-from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -54,21 +45,6 @@ NEUTRAL_COLOUR = "#9aa0a6"
 ACCENT_COLOUR = "#e8833a"
 
 
-class AnalysisPopulation(StrEnum):
-    """The two populations every distribution is reported for."""
-
-    ALL_GEMEINDEN = "all_gemeinden"
-    """Every Gemeinde with both a local cap and a statutory fallback."""
-    EXCLUDING_SUSPECTED_FALLBACK = "excluding_suspected_fallback"
-    """Dropping the Kreise that appear to apply the fallback unchanged."""
-
-
-POPULATION_LABELS: dict[AnalysisPopulation, str] = {
-    AnalysisPopulation.ALL_GEMEINDEN: "All Gemeinden",
-    AnalysisPopulation.EXCLUDING_SUSPECTED_FALLBACK: "Excluding suspected fallback",
-}
-
-
 def build_cap_comparison(
     caps: pd.DataFrame,
     fallback: pd.DataFrame,
@@ -91,7 +67,7 @@ def build_cap_comparison(
     _fail_if_columns_absent(caps, ("ags", "household_size", "kdu_cap"))
     _fail_if_columns_absent(
         fallback,
-        ("ags", "household_size", "wohngeld_fallback_cap", "wohngeld_rule_suspected"),
+        ("ags", "household_size", "wohngeld_fallback_cap"),
     )
     _fail_if_columns_absent(gemeinden, ("ags", "district_ags", "state_code"))
 
@@ -125,10 +101,9 @@ def cap_ratio_spread_across_household_sizes(frame: pd.DataFrame) -> pd.DataFrame
 
     Returns:
         One row per Gemeinde observed at every size in
-        {data}`SPREAD_HOUSEHOLD_SIZES`, with `cap_ratio_spread` and the
-        `wohngeld_rule_suspected` marker carried through. Gemeinden missing any
-        of those sizes are absent, because a spread over a subset is not
-        comparable with one over all four.
+        {data}`SPREAD_HOUSEHOLD_SIZES`, with `cap_ratio_spread`. Gemeinden
+        missing any of those sizes are absent, because a spread over a subset
+        is not comparable with one over all four.
 
     """
     _fail_if_columns_absent(frame, ("ags", "household_size", "cap_ratio"))
@@ -145,16 +120,7 @@ def cap_ratio_spread_across_household_sizes(frame: pd.DataFrame) -> pd.DataFrame
     ).reindex(columns=list(SPREAD_HOUSEHOLD_SIZES))
     complete = by_size.dropna()
     spread = (complete.max(axis=1) - complete.min(axis=1)).rename("cap_ratio_spread")
-
-    markers = (
-        frame.loc[
-            frame["household_size"] == SPREAD_HOUSEHOLD_SIZES[0],
-            ["ags", "wohngeld_rule_suspected"],
-        ]
-        .drop_duplicates(subset="ags")
-        .set_index("ags")
-    )
-    return spread.to_frame().join(markers, how="left").reset_index()
+    return spread.reset_index()
 
 
 def bedarfsgemeinschaft_weights(wohnkostenstatistik: pd.DataFrame) -> pd.DataFrame:
@@ -212,54 +178,26 @@ def attach_weights(frame: pd.DataFrame, weights: pd.DataFrame) -> pd.DataFrame:
     ).drop(columns="bedarfsgemeinschaften")
 
 
-def stack_populations(frame: pd.DataFrame) -> pd.DataFrame:
-    """Repeat the rows once per population, labelled by which they belong to.
-
-    Args:
-        frame: Any frame carrying `wohngeld_rule_suspected`.
-
-    Returns:
-        The rows of `frame` labelled `all_gemeinden`, followed by those without
-        a suspected fallback rule labelled `excluding_suspected_fallback`.
-
-    """
-    _fail_if_columns_absent(frame, ("wohngeld_rule_suspected",))
-    retained = frame.loc[~frame["wohngeld_rule_suspected"].astype(bool)]
-    return pd.concat(
-        [
-            frame.assign(population=AnalysisPopulation.ALL_GEMEINDEN.value),
-            retained.assign(
-                population=AnalysisPopulation.EXCLUDING_SUSPECTED_FALLBACK.value,
-            ),
-        ],
-        ignore_index=True,
-    )
-
-
 def summarise_cap_ratio(frame: pd.DataFrame) -> pd.DataFrame:
     """Describe the ratio of local cap to fallback by household size.
 
     Args:
-        frame: The output of {func}`attach_weights`, already stacked by
-            {func}`stack_populations`.
+        frame: The output of {func}`attach_weights`.
 
     Returns:
-        A long table with one row per measure, population, weighting scheme,
-        household size and statistic.
+        A long table with one row per measure, weighting scheme, household
+        size and statistic.
 
     """
-    _fail_if_columns_absent(frame, ("population", "household_size", "cap_ratio"))
+    _fail_if_columns_absent(frame, ("household_size", "cap_ratio"))
     rows: list[dict[str, object]] = []
     for scheme in WeightingScheme:
-        grouped = frame.groupby(["population", "household_size"], dropna=False)
-        for key, part in grouped:
-            population, household_size = cast("tuple[str, int]", key)
+        for household_size, part in frame.groupby("household_size", dropna=False):
             values = part["cap_ratio"]
             weight = part[scheme.value]
             rows.extend(
                 {
                     "measure": "cap_ratio",
-                    "population": population,
                     "weighting_scheme": scheme.value,
                     "household_size": household_size,
                     "statistic": statistic,
@@ -274,8 +212,7 @@ def summarise_cap_ratio_spread(spread: pd.DataFrame) -> pd.DataFrame:
     """Describe the spread of the ratio across household sizes.
 
     Args:
-        spread: The output of {func}`cap_ratio_spread_across_household_sizes`,
-            already stacked by {func}`stack_populations`.
+        spread: The output of {func}`cap_ratio_spread_across_household_sizes`.
 
     Returns:
         A long table shaped like {func}`summarise_cap_ratio`, with the
@@ -283,63 +220,51 @@ def summarise_cap_ratio_spread(spread: pd.DataFrame) -> pd.DataFrame:
         four.
 
     """
-    _fail_if_columns_absent(spread, ("population", "cap_ratio_spread"))
-    rows: list[dict[str, object]] = []
-    for population, part in spread.groupby("population"):
-        values = part["cap_ratio_spread"]
-        weight = pd.Series(1.0, index=part.index)
-        statistics = {
-            "n": float(values.notna().sum()),
-            "median": weighted_quantile(values, weight, 0.5),
-            "p10": weighted_quantile(values, weight, 0.10),
-            "p90": weighted_quantile(values, weight, 0.90),
-            "share_above_material_threshold": weighted_share(
-                values > MATERIAL_SPREAD_THRESHOLD,
-                weight,
-            ),
+    _fail_if_columns_absent(spread, ("cap_ratio_spread",))
+    values = spread["cap_ratio_spread"]
+    weight = pd.Series(1.0, index=spread.index)
+    statistics = {
+        "n": float(values.notna().sum()),
+        "median": weighted_quantile(values, weight, 0.5),
+        "p10": weighted_quantile(values, weight, 0.10),
+        "p90": weighted_quantile(values, weight, 0.90),
+        "share_above_material_threshold": weighted_share(
+            values > MATERIAL_SPREAD_THRESHOLD,
+            weight,
+        ),
+    }
+    return pd.DataFrame(
+        {
+            "measure": "cap_ratio_spread_across_household_sizes",
+            "weighting_scheme": WeightingScheme.GEMEINDE_UNWEIGHTED.value,
+            "household_size": pd.NA,
+            "statistic": statistic,
+            "value": value,
         }
-        rows.extend(
-            {
-                "measure": "cap_ratio_spread_across_household_sizes",
-                "population": population,
-                "weighting_scheme": WeightingScheme.GEMEINDE_UNWEIGHTED.value,
-                "household_size": pd.NA,
-                "statistic": statistic,
-                "value": value,
-            }
-            for statistic, value in statistics.items()
-        )
-    return pd.DataFrame(rows)
+        for statistic, value in statistics.items()
+    )
 
 
 def plot_cap_ratio_distribution(frame: pd.DataFrame) -> go.Figure:
     """Draw the ratio of local cap to fallback by household size.
 
     Args:
-        frame: The output of {func}`stack_populations` applied to
-            {func}`build_cap_comparison`.
+        frame: The output of {func}`build_cap_comparison`.
 
     Returns:
-        A box plot per household size and population, with the fallback drawn
-        as a reference line at one.
+        A box plot per household size, with the fallback drawn as a reference
+        line at one.
 
     """
-    plotted = frame.dropna(subset=["cap_ratio"]).assign(
-        population_label=lambda df: df["population"].map(
-            {member.value: POPULATION_LABELS[member] for member in AnalysisPopulation},
-        ),
-    )
     figure = px.box(
-        plotted,
+        frame.dropna(subset=["cap_ratio"]),
         x="household_size",
         y="cap_ratio",
-        color="population_label",
-        color_discrete_sequence=[NEUTRAL_COLOUR, ACCENT_COLOUR],
+        color_discrete_sequence=[ACCENT_COLOUR],
         points=False,
         labels={
             "household_size": "Household size",
             "cap_ratio": "Local cap ÷ statutory fallback",
-            "population_label": "",
         },
     )
     figure.add_hline(
@@ -351,7 +276,7 @@ def plot_cap_ratio_distribution(frame: pd.DataFrame) -> go.Figure:
     )
     figure.update_layout(
         title="Local KdU caps depart from the statutory fallback in both directions",
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "x": 0},
+        showlegend=False,
         boxgap=0.4,
     )
     figure.update_yaxes(tickformat=".2f")
@@ -362,29 +287,21 @@ def plot_cap_ratio_spread_distribution(spread: pd.DataFrame) -> go.Figure:
     """Draw how far the ratio moves across household sizes within a Gemeinde.
 
     Args:
-        spread: The output of {func}`stack_populations` applied to
-            {func}`cap_ratio_spread_across_household_sizes`.
+        spread: The output of {func}`cap_ratio_spread_across_household_sizes`.
 
     Returns:
-        An empirical cumulative distribution per population, with the material
-        threshold marked.
+        An empirical cumulative distribution with the material threshold
+        marked.
 
     """
-    plotted = spread.dropna(subset=["cap_ratio_spread"]).assign(
-        population_label=lambda df: df["population"].map(
-            {member.value: POPULATION_LABELS[member] for member in AnalysisPopulation},
-        ),
-    )
     figure = px.ecdf(
-        plotted,
+        spread.dropna(subset=["cap_ratio_spread"]),
         x="cap_ratio_spread",
-        color="population_label",
-        color_discrete_sequence=[NEUTRAL_COLOUR, ACCENT_COLOUR],
+        color_discrete_sequence=[ACCENT_COLOUR],
         labels={
             "cap_ratio_spread": (
                 "Largest minus smallest cap ratio over household sizes 1 to 4"
             ),
-            "population_label": "",
         },
     )
     figure.add_vline(
@@ -400,7 +317,7 @@ def plot_cap_ratio_spread_distribution(spread: pd.DataFrame) -> go.Figure:
             "household size"
         ),
         yaxis_title="Share of Gemeinden at or below",
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "x": 0},
+        showlegend=False,
     )
     figure.update_xaxes(range=[0, 0.3])
     return figure
@@ -410,7 +327,7 @@ def _cap_ratio_statistics(
     values: pd.Series,
     weight: pd.Series,
 ) -> dict[str, float]:
-    """Return the statistics reported for one household size and population."""
+    """Return the statistics reported for one household size."""
     return {
         "n": float(values.notna().sum()),
         "mean": weighted_mean(values, weight),

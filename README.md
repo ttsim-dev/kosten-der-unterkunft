@@ -83,7 +83,7 @@ The caps are the maximum regularly recognisable Unterkunftsbedarf, **not** payme
 Actual costs are recognised where they are angemessen, so entitlement depends further on
 actual rent, income, household composition, and Karenz- and Härtefallregelungen.
 
-Where a cap equals the Wohngeld-Höchstbetrag times 1.10 exactly, we suspect the Kreis
-applies the fallback unchanged, which would make the measured departure an arithmetic
-identity rather than a finding. Those documents have not been located, so this remains a
-suspicion and every result is reported both including and excluding those Kreise.
+Where a cap equals the Wohngeld-Höchstbetrag times 1.10 exactly, its departure is an
+arithmetic identity rather than a finding. The Richtlinien that would show whether the
+Kreis applies the fallback were never obtained, so those Gemeinden are neither
+identified nor set apart: every result covers the whole sample.

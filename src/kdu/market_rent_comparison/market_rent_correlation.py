@@ -129,7 +129,6 @@ def build_analysis_frame(
             "household_size",
             "mietenstufe",
             "wohngeld_fallback_cap",
-            "wohngeld_rule_suspected",
         ],
     ]
     rents = zensus_rents.loc[:, ["ags", "nettokaltmiete_eur_per_sqm_mean"]]
