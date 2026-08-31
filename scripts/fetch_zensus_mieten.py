@@ -12,10 +12,6 @@ Gemeinde-level release of the Zensus 2022 Nettokaltmiete. This script keeps the
 rent, floor-area and dwelling-count columns and writes them to
 `data/zensus/zensus2022_nettokaltmiete_gemeinden.csv` together with a manifest
 recording the source URL, the retrieval date and the SHA-256 of the workbook.
-
-The mean Nettokaltmiete *within* a floor-area class lives only in the
-Zensusdatenbank, whose API returns 403 to unauthenticated requests. See
-the Zensus 2022 release notes.
 """
 
 import csv
