@@ -567,7 +567,7 @@ def _build_colourbar(
     lower: float,
     upper: float,
 ) -> dict[str, Any]:
-    title = spec.unit or "Mietenstufe"
+    title = spec.unit or (spec.label if spec.is_ordinal else "")
     if spec.is_ordinal:
         return {
             "title": {"text": title},

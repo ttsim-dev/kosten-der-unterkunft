@@ -341,6 +341,15 @@ MAP_MEASURES: tuple[str, ...] = (
     "share_of_stock_above_cap",
 )
 
+# The measures the presentation deck shows as static images. A slide can hold
+# only one map at a time, and these three carry the lead result: the statutory
+# Mietenstufe, the local cap, and the ratio between the two.
+PRESENTATION_MAP_MEASURES: tuple[str, ...] = (
+    "mietenstufe",
+    "kdu_cap",
+    "cap_ratio",
+)
+
 # How far a local cap departs from the statutory fallback, and how much
 # variation the Mietenstufe leaves unaccounted for.
 DATA_CATALOG.add(
@@ -352,8 +361,20 @@ DATA_CATALOG.add(
     KDU_VS_WOHNGELD / "cap_ratio_spread_distribution.html",
 )
 DATA_CATALOG.add(
+    "cap_comparison_distribution_png",
+    KDU_VS_WOHNGELD / "cap_comparison_distribution.png",
+)
+DATA_CATALOG.add(
+    "cap_ratio_spread_distribution_png",
+    KDU_VS_WOHNGELD / "cap_ratio_spread_distribution.png",
+)
+DATA_CATALOG.add(
     "mietenstufe_dispersion_figure",
     KDU_VS_WOHNGELD / "mietenstufe_dispersion.html",
+)
+DATA_CATALOG.add(
+    "mietenstufe_dispersion_figure_png",
+    KDU_VS_WOHNGELD / "mietenstufe_dispersion.png",
 )
 DATA_CATALOG.add("cap_comparison_table", KDU_VS_WOHNGELD / "cap_comparison.csv")
 DATA_CATALOG.add(
@@ -368,12 +389,20 @@ DATA_CATALOG.add(
     MARKET_RENT_COMPARISON / "market_rent_correlation.html",
 )
 DATA_CATALOG.add(
+    "market_rent_correlation_figure_png",
+    MARKET_RENT_COMPARISON / "market_rent_correlation.png",
+)
+DATA_CATALOG.add(
     "market_rent_correlation_table",
     MARKET_RENT_COMPARISON / "market_rent_correlation.csv",
 )
 DATA_CATALOG.add(
     "share_of_stock_above_cap_figure",
     MARKET_RENT_COMPARISON / "share_of_stock_above_cap.html",
+)
+DATA_CATALOG.add(
+    "share_of_stock_above_cap_figure_png",
+    MARKET_RENT_COMPARISON / "share_of_stock_above_cap.png",
 )
 DATA_CATALOG.add(
     "share_of_stock_above_cap_table",
@@ -389,6 +418,10 @@ DATA_CATALOG.add(
 DATA_CATALOG.add(
     "exit_threshold_distribution",
     ELIGIBILITY / "exit_threshold_distribution.html",
+)
+DATA_CATALOG.add(
+    "exit_threshold_distribution_png",
+    ELIGIBILITY / "exit_threshold_distribution.png",
 )
 DATA_CATALOG.add("exit_threshold_table", ELIGIBILITY / "exit_threshold.csv")
 DATA_CATALOG.add(
@@ -408,6 +441,11 @@ for _measure in MAP_MEASURES:
     DATA_CATALOG.add(
         f"germany_map_{_measure}",
         MAP / f"germany_map_{_measure}.html",
+    )
+for _measure in PRESENTATION_MAP_MEASURES:
+    DATA_CATALOG.add(
+        f"germany_map_{_measure}_png",
+        MAP / f"germany_map_{_measure}.png",
     )
 
 

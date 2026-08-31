@@ -13,6 +13,7 @@ from kdu.eligibility.microsimulation import (
     plot_exit_threshold_distribution,
     summarise_exit_thresholds,
 )
+from kdu.figure_export import write_presentation_png
 
 
 def task_eligibility(
@@ -23,6 +24,9 @@ def task_eligibility(
     table_file: Annotated[Path, Product] = catalog_path("exit_threshold_table"),
     figure_file: Annotated[Path, Product] = catalog_path(
         "exit_threshold_distribution",
+    ),
+    figure_png_file: Annotated[Path, Product] = catalog_path(
+        "exit_threshold_distribution_png",
     ),
 ) -> None:
     """Simulate both scenarios and write the threshold frame, table and figure."""
@@ -41,7 +45,6 @@ def task_eligibility(
 
     thresholds.to_parquet(gemeinde_file, index=False)
     summarise_exit_thresholds(thresholds).to_csv(table_file, index=False)
-    plot_exit_threshold_distribution(thresholds).write_html(
-        figure_file,
-        include_plotlyjs="cdn",
-    )
+    figure = plot_exit_threshold_distribution(thresholds)
+    figure.write_html(figure_file, include_plotlyjs="cdn")
+    write_presentation_png(figure, figure_png_file)

@@ -7,6 +7,7 @@ import pandas as pd
 from pytask import Product
 
 from kdu.config import catalog_path
+from kdu.figure_export import write_presentation_png
 from kdu.kdu_vs_wohngeld.cap_comparison import build_cap_comparison
 from kdu.kdu_vs_wohngeld.mietenstufe_dispersion import (
     dispersion_within_mietenstufe,
@@ -22,6 +23,9 @@ def task_mietenstufe_dispersion(
     figure_file: Annotated[Path, Product] = catalog_path(
         "mietenstufe_dispersion_figure",
     ),
+    figure_png_file: Annotated[Path, Product] = catalog_path(
+        "mietenstufe_dispersion_figure_png",
+    ),
     shares_file: Annotated[Path, Product] = catalog_path("mietenstufe_variance_shares"),
 ) -> None:
     """Measure the dispersion inside each Mietenstufe and write the results."""
@@ -33,7 +37,10 @@ def task_mietenstufe_dispersion(
     shares = variance_shares(frame)
     dispersion = dispersion_within_mietenstufe(frame)
 
-    plot_mietenstufe_dispersion(frame, shares).write_html(figure_file)
+    figure = plot_mietenstufe_dispersion(frame, shares)
+
+    figure.write_html(figure_file)
+    write_presentation_png(figure, figure_png_file)
     pd.concat(
         [
             dispersion.assign(measure="dispersion_within_mietenstufe"),

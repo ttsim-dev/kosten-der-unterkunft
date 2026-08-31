@@ -7,6 +7,7 @@ import pandas as pd
 from pytask import Product
 
 from kdu.config import catalog_path
+from kdu.figure_export import write_presentation_png
 from kdu.kdu_vs_wohngeld.cap_comparison import (
     attach_weights,
     bedarfsgemeinschaft_weights,
@@ -30,6 +31,12 @@ def task_cap_comparison(
     spread_file: Annotated[Path, Product] = catalog_path(
         "cap_ratio_spread_distribution",
     ),
+    distribution_png_file: Annotated[Path, Product] = catalog_path(
+        "cap_comparison_distribution_png",
+    ),
+    spread_png_file: Annotated[Path, Product] = catalog_path(
+        "cap_ratio_spread_distribution_png",
+    ),
     table_file: Annotated[Path, Product] = catalog_path("cap_comparison_table"),
 ) -> None:
     """Compare every local cap with its statutory fallback and write the results."""
@@ -49,6 +56,11 @@ def task_cap_comparison(
         ignore_index=True,
     )
 
-    plot_cap_ratio_distribution(weighted).write_html(distribution_file)
-    plot_cap_ratio_spread_distribution(spread).write_html(spread_file)
+    distribution_figure = plot_cap_ratio_distribution(weighted)
+    spread_figure = plot_cap_ratio_spread_distribution(spread)
+
+    distribution_figure.write_html(distribution_file)
+    spread_figure.write_html(spread_file)
+    write_presentation_png(distribution_figure, distribution_png_file)
+    write_presentation_png(spread_figure, spread_png_file)
     table.to_csv(table_file, index=False)
