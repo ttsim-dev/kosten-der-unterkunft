@@ -1,51 +1,40 @@
 # kdu
 
-How far does the maximum rent a local Jobcenter will recognise depart from the figure a
-tax-transfer model substitutes when it has no local number — and what does that change?
+This repo provides a plotly choropleth of Germany at Gemeinde level. It depics the
+maximum Kosten der Unterkunft at the Gemeindelevel and compares it with the maximum
+Wohngeld rent.
+
+Much of this is based on Harald Thomé's
+[KdU-Richtlinien und Mietobergrenzen](https://harald-thome.de/informationen/bundesweite-dienstanweisungen-kdu.html)
+collection of Jobcenter and Sozialamt directives on angemessene Unterkunftskosten.
 
 Under SGB II and SGB XII, roughly 400 Kreise and kreisfreie Städte each publish their
-own Angemessenheitsgrenze for Unterkunftskosten. Tax-transfer models rarely have those
-figures and substitute the Wohngeld-Höchstbetrag instead. This repository collects the
-local rules, measures the substitution error, and traces it through to eligibility.
+own Angemessenheitsgrenze for Unterkunftskosten. This repository collects the
+local rules, measures the errors researchers make when using rule of thumb fallbacks,
+and reports how those errors change the gross income at which a household leaves the
+transfer system.
 
 The benchmark throughout is the **Wohngeld-Höchstbetrag times 1.10** — the standard the
 Bundessozialgericht prescribes where a Kreis has published no schlüssiges Konzept, and
 therefore the legally correct comparator rather than an arbitrary one.
 
-## What it finds
-
-- The fallback is **right on average and wrong locally**: at household size one the
-  median Gemeinde's cap sits 0.2% above it, while the tenth and ninetieth percentiles
-  sit 16.6% below and 22.5% above.
-- The statutory **Mietenstufe cannot repair this**. It accounts for about 41% of the
-  variation in local caps — less than knowing the Bundesland alone accounts for.
-- The variation it misses is **not administrative noise**. Within a Mietenstufe, where
-  the fallback is constant by construction, local caps still track actual Zensus market
-  rents.
-- A cap error is **amplified** in what it changes: roughly 1.9 euro of gross income at
-  the point a household leaves the transfer system per euro of error in the cap.
-
 ## Installation and use
 
 ```bash
 pixi install
-pixi run pytask                    # build everything into bld/
+pixi run pytask
 pixi run pytest
 pixi run ty
 pixi run prek run --all-files
 ```
 
-The build never touches the network. Source data are committed under `data/`;
-`scripts/fetch_*.py` refresh them by hand when a new vintage appears.
 
 ## The map
 
 `bld/map/germany_map.html` is an interactive Gemeinde-level choropleth with seven
 measures and a household-size control: the Mietenstufe, the local cap in euro and per
 square metre, the statutory fallback, the ratio between them, the admissible Wohnfläche,
-and the share of the local rented stock priced above the cap. Each measure is also
-exported as its own file. Areas whose directive admits a Härtefallregelung are hatched.
-The map is labelled in German.
+and the share of the local rented stock priced above the cap.
 
 ## Data
 
@@ -82,8 +71,3 @@ The map is labelled in German.
 The caps are the maximum regularly recognisable Unterkunftsbedarf, **not** payments.
 Actual costs are recognised where they are angemessen, so entitlement depends further on
 actual rent, income, household composition, and Karenz- and Härtefallregelungen.
-
-Where a cap equals the Wohngeld-Höchstbetrag times 1.10 exactly, its departure is an
-arithmetic identity rather than a finding. The Richtlinien that would show whether the
-Kreis applies the fallback were never obtained, so those Gemeinden are neither
-identified nor set apart: every result covers the whole sample.

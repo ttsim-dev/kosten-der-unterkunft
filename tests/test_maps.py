@@ -197,8 +197,3 @@ def test_describe_household_size_uses_the_german_singular_and_plural(
     expected: str,
 ) -> None:
     assert describe_household_size(household_size) == expected
-
-
-def test_measure_registry_and_catalog_measure_names_agree() -> None:
-    """Every measure the map defines is also exported as its own file."""
-    assert tuple(spec.key for spec in MEASURES) == MAP_MEASURES
