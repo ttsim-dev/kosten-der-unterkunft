@@ -341,9 +341,9 @@ MAP_MEASURES: tuple[str, ...] = (
     "share_of_stock_above_cap",
 )
 
-# The measures the presentation deck shows as static images. A slide can hold
-# only one map at a time, and these three carry the lead result: the statutory
-# Mietenstufe, the local cap, and the ratio between the two.
+# The measures the presentation deck shows as static images. A slide holds one
+# map at a time, and the map segment shows these three views in this order: the
+# statutory Mietenstufe, the local cap, and the ratio between the two.
 PRESENTATION_MAP_MEASURES: tuple[str, ...] = (
     "mietenstufe",
     "kdu_cap",

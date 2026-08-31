@@ -13,7 +13,7 @@ The YAML says it itself: *"Die regionalen Parameter sind unbekannt."*
 
 <!--
 Two national constants, a price per square metre and an admissible area, multiplied
-together. The file is honest about what it does not know.
+together. The parameter file records that the regional values are unknown.
 -->
 
 ---

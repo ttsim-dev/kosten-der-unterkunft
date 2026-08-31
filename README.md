@@ -91,5 +91,5 @@ Chromium, which npm does not install by default; run
 `npm install-scripts approve playwright-chromium` once beforehand.
 
 The map segment is presented live from `bld/map/germany_map.html` in a separate browser
-window. `documents/pages/03_map.md` carries hidden fallback slides showing static
-renderings of the same three views.
+window. Slides 22 to 24, in `documents/pages/07_map_appendix.md`, are static renderings
+of the same three views, for a machine where the live map does not come up.

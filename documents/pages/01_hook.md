@@ -8,11 +8,11 @@ regelbedarf_m = regelsatz_m + kosten_der_unterkunft_m
 
 - `kosten_der_unterkunft_m` is in **no law at all**
 
-- And it is the **larger** and far more **variable** half
+- And it is the half that **varies**: one national number against 272.64 € to 911.00 €
 
 <!--
-This identity is the whole talk. The left half is legislated to the cent; the right
-half is not written down anywhere in federal law, and it is the bigger of the two.
+The left half is legislated to the cent — 563 € at Regelbedarfsstufe 1. The right
+half is not written down in federal law at all, and it is the half that moves.
 -->
 
 ---
@@ -54,6 +54,7 @@ the recognised housing cap runs from 273 € to 911 €. This is not a rounding 
 Every cap here is a **Bruttokaltmiete**, and every cap is a **maximum, not a payment**.
 
 <!--
-The room knows Bürgergeld but not this machinery. The law delegates the number, about
-four hundred Träger each answer it separately, and the courts supply the fallback.
+The room knows Bürgergeld but not this delegation. The law leaves the number open,
+about four hundred Träger each answer it separately, and the courts supply the
+fallback.
 -->

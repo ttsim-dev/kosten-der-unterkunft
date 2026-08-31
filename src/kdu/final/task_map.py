@@ -96,7 +96,7 @@ def _write_map(
     vintage: str,
     png_path: Path | None = None,
 ) -> None:
-    """Write one choropleth offering the given measures, and its PNG if asked.
+    """Write one choropleth offering the given measures, and a static image of it.
 
     Args:
         path: Destination of the interactive HTML file.

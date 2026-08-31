@@ -5,7 +5,8 @@ Switching to the second window: `bld/map/germany_map.html`
 - **Mietenstufe** — statutory, seven coarse steps. Everything GETTSIM could condition
   on today.
 
-- **Local cap in €** — the real thing. Kreis borders visibly break.
+- **Local cap in €** — the real thing. The colour changes inside Kreise, not only at
+  their borders.
 
 - **Cap ratio** — where the fallback fails. Zoom **Kreis Steinfurt**: 24 Gemeinden,
   23 distinct caps, one directive.

@@ -39,6 +39,7 @@ Kinderzuschlag instead of Bürgergeld, or the reverse.
 It corrupts take-up and the instrument split even when total euros look fine.
 
 <!--
-Three non-linear points in the DAG, and only the first one is kind. Spend the time on
-the third row: a bool cannot be off by sixteen euros, it is simply wrong.
+Three non-linear points in the DAG, and only the first reduces the error. Spend the
+time on the third row: a bool cannot be off by sixteen euros — it is either right or
+wrong.
 -->

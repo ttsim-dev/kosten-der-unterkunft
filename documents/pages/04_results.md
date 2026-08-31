@@ -8,9 +8,9 @@ Cap difference, single adult, € per month — deciles:
 
 <img src="../../bld/kdu_vs_wohngeld/cap_comparison_distribution.png" style="max-height: 290px; margin: 1rem auto 0;" />
 
-**A default that is right on average is wrong by ±80 € in the tails.**
+**A default that is right on average is wrong by −74 € at the first decile and +98 € at the ninth.**
 
-<!-- The benchmark is not a floor: more than a third of Gemeinden are stricter than the Bundessozialgericht fallback. Read the two ends of the decile row out loud — that spread is the whole problem. -->
+<!-- The benchmark is not a floor: more than a third of Gemeinden are stricter than the Bundessozialgericht fallback. Read the two ends of the decile row out loud — that spread is what the fallback cannot represent. -->
 
 ---
 
@@ -53,7 +53,7 @@ Share of variance in log caps explained, household size 1, n = 9,397:
 | Mietenstufe × Bundesland | 69 | 0.739 |
 | Kreis | 358 | 0.919 |
 
-Knowing only the Bundesland beats knowing the statutory Mietenstufe.
+Knowing only the Bundesland accounts for more of the variation than the statutory Mietenstufe.
 
 Within Mietenstufe 1 the interdecile range is still **167.5 €**.
 
@@ -61,9 +61,9 @@ Within Mietenstufe 1 the interdecile range is still **167.5 €**.
 
 <img src="../../bld/kdu_vs_wohngeld/mietenstufe_dispersion.png" style="max-height: 400px; margin: 0 auto;" />
 
-**Conditioning on the Mietenstufe leaves ~59 % of the variation on the table.**
+**Conditioning on the Mietenstufe leaves 59 % of the variation unaccounted for.**
 
-<!-- This is the lead result. The statutory instrument that looks like the regional control is beaten by a variable with sixteen values and no housing content at all. -->
+<!-- This is the lead result. The statutory instrument that looks like the regional control accounts for less of the variation than a classification with sixteen values and no housing content at all. -->
 
 ---
 
@@ -78,11 +78,11 @@ Correlation with Zensus 2022 market rents, single adult, n = 9,281:
 
 Between Mietenstufen the fallback tracks rents slightly *better*.
 
-Within one, it cannot vary at all — while real caps still track the market.
+Within one, it cannot vary at all — while real caps still track market rents.
 
 **The error is correlated with local housing costs — the thing a regional analysis conditions on. Confounding, not noise.**
 
-<!-- Concede the first column: between Mietenstufen the statutory ladder does its job. The second column is where the residual lives, and it is systematic. -->
+<!-- Concede the first column: between Mietenstufen the Mietenstufe tracks the rent gradient. The second column holds the residual variation, and it is systematic. -->
 
 ---
 
@@ -125,6 +125,6 @@ Euro of gross income at the transfer exit per euro of cap error:
 
 The pensioner is the outlier: a pension counts almost in full, while earnings keep part of each euro under the Erwerbstätigenfreibetrag of § 11b SGB II. The amplification is largely that disregard.
 
-**The eligibility boundary is about twice as wrong as the input you fed in.**
+**Each euro of cap error moves the eligibility boundary by 1.86 €.**
 
 <!-- Amplification is a property of earners, not of households in general — the ranking here is the Erwerbstätigenfreibetrag showing through. The exit threshold assumes the actual Bruttokaltmiete sits at the higher of the two caps, so the cap binds in both scenarios. -->
