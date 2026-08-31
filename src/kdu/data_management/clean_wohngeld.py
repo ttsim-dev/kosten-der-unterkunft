@@ -1,16 +1,32 @@
 """Build the statutory benchmark each local KdU cap is measured against.
 
-Where a Kreis publishes no schlüssiges Konzept, BSG case law fixes the
-Angemessenheitsgrenze at the Anlage 1 Höchstbetrag of § 12 Absatz 1 WoGG plus
-a Sicherheitszuschlag of 10 %. That figure — `wohngeld_fallback_cap` — is the
-project's single benchmark: it is what a Träger is legally required to apply
-when it has nothing of its own, and therefore the standard a local rule
-departs from. The bare Höchstbetrag is carried alongside it so the markup
-stays visible.
+Where a Kreis publishes no schlüssiges Konzept, the Angemessenheitsgrenze is
+the Wohngeld table plus a Sicherheitszuschlag of 10 % (BSG, 12.12.2013 -
+B 4 AS 87/12 R). The benchmark `wohngeld_fallback_cap` reads that table as the
+Anlage 1 Höchstbetrag of § 12 Absatz 1 WoGG together with the Klimakomponente
+of § 12 Absatz 7 WoGG:
 
-Both are Bruttokaltmieten: § 9 WoGG excludes heating and hot water from the
-wohngeldrechtliche Miete, so the benchmark and the local caps are on the same
-rent concept.
+    wohngeld_fallback_cap = (Höchstbetrag + Klimakomponente) * 1.10
+
+The two parts are carried alongside the result so the composition stays
+visible.
+
+That ordering follows consistent instance case law and is unresolved at the
+Bundessozialgericht. The 2013 judgment predates the Klimakomponente, in force
+since 1.1.2023, and cannot speak to it; no Bundessozialgericht decision has
+since addressed whether it enters the SGB II fallback. Instance courts add it
+to the Anlage 1 value first and apply the 10 % to the sum (SG Aurich
+23.09.2025 - S 55 AS 99/25 ER; SG Oldenburg 20.06.2024 - S 37 AS 506/23; LSG
+Berlin-Brandenburg 17.01.2024 - L 32 AS 1179/23 B ER), reasoning that the
+Sicherheitszuschlag absorbs the backward-looking nature of the Wohngeld table
+while the Klimakomponente addresses future price development.
+
+The Heizkostenentlastung of § 12 Absatz 6 WoGG is read from the parameter table
+but never enters the benchmark. Every comparison in this project is on the
+Bruttokaltmiete, and heating costs sit on the other side of that line: § 9 WoGG
+excludes heating and hot water from the wohngeldrechtliche Miete, so the
+benchmark and the local caps are on the same rent concept only as long as the
+heating component stays out.
 
 The only Gemeinde-level input is the Mietenstufe of `wogg_mietstufe`. It is
 never derived from Kreis membership or population: it is the classification
@@ -35,6 +51,7 @@ WOHNGELD_FALLBACK_COLUMNS: tuple[str, ...] = (
     "household_size",
     "mietenstufe",
     "wohngeld_hoechstbetrag",
+    "wohngeld_klimakomponente",
     "wohngeld_fallback_cap",
 )
 
@@ -45,12 +62,22 @@ class WohngeldParameters:
 
     hoechstbetrag: MappingProxyType[tuple[int, int], float]
     """`(mietenstufe, household_size)` → Höchstbetrag in euro per month."""
+    klimakomponente: MappingProxyType[int, float]
+    """`household_size` → Klimakomponente in euro per month.
+
+    § 12 Absatz 7 WoGG sets one amount per household size, identical across all
+    seven Mietenstufen.
+    """
     legal_sources: MappingProxyType[str, tuple[str, str]]
     """Parameter name → (legal citation, date the Fassung came into force)."""
 
     def hoechstbetrag_for(self, mietenstufe: int, household_size: int) -> float:
         """Look up one Höchstbetrag by Mietenstufe and household size."""
         return self.hoechstbetrag[mietenstufe, household_size]
+
+    def klimakomponente_for(self, household_size: int) -> float:
+        """Look up one Klimakomponente by household size."""
+        return self.klimakomponente[household_size]
 
     @property
     def vintage_label(self) -> str:
@@ -93,9 +120,13 @@ def build_wohngeld_fallback(
         result["household_size"],
         parameters,
     )
-    result["wohngeld_fallback_cap"] = (
-        result["wohngeld_hoechstbetrag"] * WOHNGELD_FALLBACK_MARKUP
+    result["wohngeld_klimakomponente"] = _lookup_klimakomponente(
+        result["household_size"],
+        parameters,
     )
+    result["wohngeld_fallback_cap"] = (
+        result["wohngeld_hoechstbetrag"] + result["wohngeld_klimakomponente"]
+    ) * WOHNGELD_FALLBACK_MARKUP
     return (
         result.loc[:, list(WOHNGELD_FALLBACK_COLUMNS)]
         .sort_values(["ags", "household_size"])
@@ -112,11 +143,14 @@ def load_wohngeld_parameters(path: Path) -> WohngeldParameters:
     Returns:
         The immutable parameter set. Rows for the Mehrbetrag per additional
         household member are read but not exposed: households of six and more
-        are outside the household sizes this project reports.
+        are outside the household sizes this project reports. So is the
+        Heizkostenentlastung of § 12 Absatz 6 WoGG, which lies outside the
+        Bruttokaltmiete every comparison here is on.
 
     Raises:
         ValueError: If any combination of Mietenstufe and household size is
-            missing, or if a row lacks its legal citation or Fassung date.
+            missing, if a Klimakomponente is missing for a reported household
+            size, or if a row lacks its legal citation or Fassung date.
 
     """
     raw = pd.read_csv(path, dtype_backend="pyarrow")
@@ -134,8 +168,20 @@ def load_wohngeld_parameters(path: Path) -> WohngeldParameters:
     }
     _fail_if_hoechstbetrag_incomplete(hoechstbetrag, path)
 
+    climate = raw.query("parameter == 'climate_component'")
+    klimakomponente = {
+        int(household_size): float(value)
+        for household_size, value in zip(
+            climate["household_size"],
+            climate["value_eur"],
+            strict=True,
+        )
+    }
+    _fail_if_klimakomponente_incomplete(klimakomponente, path)
+
     return WohngeldParameters(
         hoechstbetrag=MappingProxyType(hoechstbetrag),
+        klimakomponente=MappingProxyType(klimakomponente),
         legal_sources=MappingProxyType(
             {
                 str(parameter): (str(source), str(in_force))
@@ -190,6 +236,17 @@ def _lookup_hoechstbetrag(
     ).astype("Float64")
 
 
+def _lookup_klimakomponente(
+    household_size: pd.Series,
+    parameters: WohngeldParameters,
+) -> pd.Series:
+    table = pd.Series(dict(parameters.klimakomponente), dtype="Float64")
+    return pd.Series(
+        table.reindex(household_size).to_numpy(dtype="object"),
+        index=household_size.index,
+    ).astype("Float64")
+
+
 def _fail_if_key_columns_missing(mietenstufen: pd.DataFrame) -> None:
     missing = {"ags", "mietenstufe"} - set(mietenstufen.columns)
     if missing:
@@ -209,6 +266,18 @@ def _fail_if_hoechstbetrag_incomplete(
     missing = expected - set(hoechstbetrag)
     if missing:
         msg = f"{path} lacks Höchstbetrag rows for {sorted(missing)}"
+        raise ValueError(msg)
+
+
+def _fail_if_klimakomponente_incomplete(
+    klimakomponente: dict[int, float],
+    path: Path,
+) -> None:
+    missing = set(HOUSEHOLD_SIZES) - set(klimakomponente)
+    if missing:
+        msg = (
+            f"{path} lacks Klimakomponente rows for household size(s) {sorted(missing)}"
+        )
         raise ValueError(msg)
 
 

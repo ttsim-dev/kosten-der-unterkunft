@@ -112,14 +112,22 @@ HOUSEHOLD_SIZES: tuple[int, ...] = (1, 2, 3, 4, 5)
 # The statutory Mietenstufen I to VII of § 12 WoGG, as integers.
 MIETENSTUFEN: tuple[int, ...] = (1, 2, 3, 4, 5, 6, 7)
 
-# The markup on the Anlage 1 Höchstbetrag that defines the project's benchmark.
+# The markup applied to the sum of the Anlage 1 Höchstbetrag and the
+# Klimakomponente, which together define the project's benchmark.
 #
-# Where a Kreis publishes no schlüssiges Konzept, BSG case law fixes the
-# Angemessenheitsgrenze at the Wohngeld table plus a Sicherheitszuschlag of
-# 10 %. That fallback, not the bare Höchstbetrag, is the single benchmark every
-# result is measured against: it is the figure a Träger is legally required to
-# apply when it has nothing of its own, so it is the standard a local rule
-# departs from.
+# Where a Kreis publishes no schlüssiges Konzept, the Angemessenheitsgrenze is
+# the Wohngeld table plus a Sicherheitszuschlag of 10 % (BSG, 12.12.2013 -
+# B 4 AS 87/12 R). That judgment predates the Klimakomponente of § 12 Absatz 7
+# WoGG, in force since 1.1.2023, and so cannot speak to it.
+#
+# Whether the Klimakomponente enters the fallback is unresolved at the
+# Bundessozialgericht. Instance courts consistently add it to the Anlage 1
+# value first and apply the 10 % to the sum (SG Aurich 23.09.2025 -
+# S 55 AS 99/25 ER; SG Oldenburg 20.06.2024 - S 37 AS 506/23; LSG
+# Berlin-Brandenburg 17.01.2024 - L 32 AS 1179/23 B ER), reasoning that the
+# Sicherheitszuschlag absorbs the backward-looking nature of the Wohngeld table
+# while the Klimakomponente addresses future price development, so the one does
+# not already contain the other. This project follows that ordering.
 WOHNGELD_FALLBACK_MARKUP = 1.10
 
 
@@ -265,8 +273,19 @@ class WeightingScheme(StrEnum):
 
     GEMEINDE_UNWEIGHTED = "gemeinde_unweighted"
     """One Gemeinde, one weight: what the administrative landscape looks like."""
-    BEDARFSGEMEINSCHAFT = "bedarfsgemeinschaft"
-    """Weighted by SGB II Bedarfsgemeinschaften at the household size in question."""
+    BEDARFSGEMEINSCHAFT_ALLOCATED_BY_POPULATION = (
+        "n_bedarfsgemeinschaften_allocated_by_population"
+    )
+    """The observed Kreis caseload, allocated across Gemeinden by resident population.
+
+    The Bundesagentur publishes Bedarfsgemeinschaften at Jobcenter and therefore
+    Kreis level only, so where within a Kreis its claimants live is not
+    observed. The weight distributes the Kreis stock at a given household size
+    over that Kreis's Gemeinden in proportion to their resident population,
+    which assumes a claimant rate constant within the Kreis. The denominator
+    runs over every Gemeinde of the Kreis, including those whose cap is unknown,
+    so an unknown cap withholds its share rather than passing it on.
+    """
 
 
 def corpus_root() -> Path:

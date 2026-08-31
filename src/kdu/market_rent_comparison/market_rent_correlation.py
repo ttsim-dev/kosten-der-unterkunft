@@ -50,7 +50,7 @@ class CapKind(StrEnum):
     LOCAL = "local_kdu_cap"
     """The maximum rent the responsible Kreis recognises."""
     FALLBACK = "wohngeld_fallback_cap"
-    """The Wohngeld Höchstbetrag raised by the Sicherheitszuschlag."""
+    """Höchstbetrag and Klimakomponente, raised by the Sicherheitszuschlag."""
 
     @property
     def column(self) -> str:

@@ -29,8 +29,11 @@ HAERTEFALL_NOTE = (
     "Schraffur: eigene Härtefallregelung (Berlin: zehn Prozent, nicht enthalten)"
 )
 SICHERHEITSZUSCHLAG_NOTE = (
-    "Ohne schlüssiges Konzept gilt der Wohngeld-Höchstbetrag zuzüglich zehn Prozent "
-    "Sicherheitszuschlag (Bundessozialgericht B 4 AS 87/12 R)"
+    "Ohne schlüssiges Konzept gilt der Wohngeld-Höchstbetrag samt Klimakomponente "
+    "(§ 12 Absatz 7 Wohngeldgesetz) zuzüglich zehn Prozent Sicherheitszuschlag "
+    "(Bundessozialgericht B 4 AS 87/12 R; die Einbeziehung der Klimakomponente "
+    "folgt der einhelligen Instanzrechtsprechung und ist bundessozialgerichtlich "
+    "nicht geklärt)"
 )
 
 GEMEINDEFREIES_GEBIET = "Gemeindefreies Gebiet"
@@ -274,8 +277,8 @@ def build_footnotes(
     Two separate surcharges of ten percent bear on a KdU cap and neither is
     legible from the number alone:
 
-    - the Sicherheitszuschlag on the Wohngeldtabelle, already inside the
-      Richtwerte of the Kreise without a schlüssiges Konzept
+    - the Sicherheitszuschlag on the Wohngeldtabelle and its Klimakomponente,
+      already inside the Richtwerte of the Kreise without a schlüssiges Konzept
     - Berlin's Härtefallzuschlag, which is not included and marks the hatching
     """
     lines = []

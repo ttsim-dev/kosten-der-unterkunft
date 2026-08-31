@@ -1,9 +1,11 @@
 """How far a local KdU cap departs from the statutory fallback.
 
-Where a Kreis publishes no schlüssiges Konzept, BSG case law fixes the
-Angemessenheitsgrenze at the Wohngeld Höchstbetrag plus a Sicherheitszuschlag
-of 10 %. That fallback is the standard every local rule is measured against
-here, in two ways:
+Where a Kreis publishes no schlüssiges Konzept, the Angemessenheitsgrenze is
+the Wohngeld table plus a Sicherheitszuschlag of 10 % (BSG, 12.12.2013 -
+B 4 AS 87/12 R), read here as the Anlage 1 Höchstbetrag together with the
+Klimakomponente of § 12 Absatz 7 WoGG. {mod}`kdu.data_management.clean_wohngeld`
+builds that benchmark and records the case law it rests on. It is the standard
+every local rule is measured against here, in two ways:
 
 - the departure at a given household size, as a euro difference, a ratio and a
   log ratio;
@@ -149,12 +151,67 @@ def bedarfsgemeinschaft_weights(wohnkostenstatistik: pd.DataFrame) -> pd.DataFra
     )
 
 
-def attach_weights(frame: pd.DataFrame, weights: pd.DataFrame) -> pd.DataFrame:
+def allocate_bedarfsgemeinschaften_to_gemeinden(
+    weights: pd.DataFrame,
+    gemeinden: pd.DataFrame,
+) -> pd.DataFrame:
+    """Spread each Kreis caseload over its Gemeinden by resident population.
+
+    The Bundesagentur publishes Bedarfsgemeinschaften at Jobcenter and so at
+    Kreis level; where within a Kreis its claimants live is not observed. The
+    Kreis stock at a household size is therefore split in proportion to
+    resident population,
+
+        weight(gemeinde, size) = stock(kreis, size) * population(gemeinde)
+                                 / total population of the kreis,
+
+    which assumes a claimant rate constant within the Kreis. The denominator
+    runs over every Gemeinde the Kreis contains, whether or not its cap is
+    known, so a Gemeinde with no cap withholds its share rather than passing it
+    to its neighbours.
+
+    Args:
+        weights: The output of {func}`bedarfsgemeinschaft_weights`.
+        gemeinden: Every Gemeinde with `ags`, `district_ags` and `population`.
+
+    Returns:
+        One row per `ags` and `household_size` the Bundesagentur reports, with
+        the allocated weight under the name of
+        `WeightingScheme.BEDARFSGEMEINSCHAFT_ALLOCATED_BY_POPULATION`. Because
+        the shares within a Kreis sum to one, the allocated total at a
+        household size equals the reported stock of every Kreis the Gemeinde
+        table covers, and never exceeds the national stock.
+
+    """
+    _fail_if_columns_absent(
+        weights,
+        ("district_ags", "household_size", "bedarfsgemeinschaften"),
+    )
+    _fail_if_columns_absent(gemeinden, ("ags", "district_ags", "population"))
+
+    shares = gemeinden[["ags", "district_ags", "population"]].assign(
+        population_share=lambda df: (
+            df["population"] / df.groupby("district_ags")["population"].transform("sum")
+        ),
+    )
+    allocated = shares.merge(weights, on="district_ags", how="inner")
+    scheme = WeightingScheme.BEDARFSGEMEINSCHAFT_ALLOCATED_BY_POPULATION.value
+    return allocated.assign(
+        **{
+            scheme: lambda df: df["bedarfsgemeinschaften"] * df["population_share"],
+        },
+    ).loc[:, ["ags", "household_size", scheme]]
+
+
+def attach_weights(
+    frame: pd.DataFrame, allocated_weights: pd.DataFrame
+) -> pd.DataFrame:
     """Attach both weighting schemes as columns named after them.
 
     Args:
         frame: The output of {func}`build_cap_comparison`.
-        weights: The output of {func}`bedarfsgemeinschaft_weights`.
+        allocated_weights: The output of
+            {func}`allocate_bedarfsgemeinschaften_to_gemeinden`.
 
     Returns:
         `frame` with one column per member of
@@ -163,19 +220,18 @@ def attach_weights(frame: pd.DataFrame, weights: pd.DataFrame) -> pd.DataFrame:
         zero, so it drops out of that scheme without dropping out of the other.
 
     """
+    scheme = WeightingScheme.BEDARFSGEMEINSCHAFT_ALLOCATED_BY_POPULATION.value
     attached = merge_without_duplicating(
         frame,
-        weights,
-        on=("district_ags", "household_size"),
+        allocated_weights,
+        on=("ags", "household_size"),
     )
     return attached.assign(
         **{
             WeightingScheme.GEMEINDE_UNWEIGHTED.value: 1.0,
-            WeightingScheme.BEDARFSGEMEINSCHAFT.value: lambda df: df[
-                "bedarfsgemeinschaften"
-            ].fillna(0.0),
+            scheme: lambda df: df[scheme].fillna(0.0),
         },
-    ).drop(columns="bedarfsgemeinschaften")
+    )
 
 
 def summarise_cap_ratio(frame: pd.DataFrame) -> pd.DataFrame:
@@ -204,6 +260,44 @@ def summarise_cap_ratio(frame: pd.DataFrame) -> pd.DataFrame:
                     "value": value,
                 }
                 for statistic, value in _cap_ratio_statistics(values, weight).items()
+            )
+    return pd.DataFrame(rows)
+
+
+def summarise_cap_difference_eur(frame: pd.DataFrame) -> pd.DataFrame:
+    """Describe the euro gap between local cap and fallback by household size.
+
+    The ratio says how far a cap departs in proportional terms; the euro
+    difference says what that is worth per month, which is the figure a
+    Bedarfsgemeinschaft's budget is stated in.
+
+    Args:
+        frame: The output of {func}`attach_weights`.
+
+    Returns:
+        A long table shaped like {func}`summarise_cap_ratio`, carrying the
+        mean, every decile from `p10` to `p90`, and the share of the
+        distribution below the fallback.
+
+    """
+    _fail_if_columns_absent(frame, ("household_size", "cap_difference_eur"))
+    rows: list[dict[str, object]] = []
+    for scheme in WeightingScheme:
+        for household_size, part in frame.groupby("household_size", dropna=False):
+            values = part["cap_difference_eur"]
+            weight = part[scheme.value]
+            rows.extend(
+                {
+                    "measure": "cap_difference_eur",
+                    "weighting_scheme": scheme.value,
+                    "household_size": household_size,
+                    "statistic": statistic,
+                    "value": value,
+                }
+                for statistic, value in _cap_difference_statistics(
+                    values,
+                    weight,
+                ).items()
             )
     return pd.DataFrame(rows)
 
@@ -336,6 +430,24 @@ def _cap_ratio_statistics(
         "p90": weighted_quantile(values, weight, 0.90),
         "standard_deviation": weighted_standard_deviation(values, weight),
         "share_below_fallback": weighted_share(values < 1.0, weight),
+    }
+
+
+def _cap_difference_statistics(
+    values: pd.Series,
+    weight: pd.Series,
+) -> dict[str, float]:
+    """Return the euro statistics reported for one household size."""
+    deciles = {
+        f"p{decile}0": weighted_quantile(values, weight, decile / 10)
+        for decile in range(1, 10)
+    }
+    return {
+        "n": float(values.notna().sum()),
+        "mean": weighted_mean(values, weight),
+        "median": weighted_quantile(values, weight, 0.5),
+        **deciles,
+        "share_below_fallback": weighted_share(values < 0.0, weight),
     }
 
 

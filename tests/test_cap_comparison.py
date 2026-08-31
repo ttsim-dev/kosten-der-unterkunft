@@ -6,10 +6,12 @@ import pytest
 
 from kdu.config import WeightingScheme
 from kdu.kdu_vs_wohngeld.cap_comparison import (
+    allocate_bedarfsgemeinschaften_to_gemeinden,
     attach_weights,
     bedarfsgemeinschaft_weights,
     build_cap_comparison,
     cap_ratio_spread_across_household_sizes,
+    summarise_cap_difference_eur,
 )
 
 
@@ -45,6 +47,7 @@ def gemeinden() -> pd.DataFrame:
             "ags": ["01001000", "01002000"],
             "district_ags": ["01001", "01001"],
             "state_code": ["01", "01"],
+            "population": [75, 25],
         },
     )
 
@@ -146,5 +149,109 @@ def test_attach_weights_gives_zero_weight_to_an_unreported_kreis(
             "bedarfsgemeinschaften": pd.Series([], dtype="float64"),
         },
     )
-    weighted = attach_weights(frame, empty)
-    assert weighted[WeightingScheme.BEDARFSGEMEINSCHAFT.value].eq(0.0).all()
+    allocated = allocate_bedarfsgemeinschaften_to_gemeinden(empty, gemeinden)
+    weighted = attach_weights(frame, allocated)
+    scheme = WeightingScheme.BEDARFSGEMEINSCHAFT_ALLOCATED_BY_POPULATION.value
+    assert weighted[scheme].eq(0.0).all()
+
+
+def _kreis_stock() -> pd.DataFrame:
+    """One Kreis reported at household sizes one and two."""
+    return pd.DataFrame(
+        {
+            "district_ags": ["01001", "01001"],
+            "household_size": [1, 2],
+            "bedarfsgemeinschaften": [1000.0, 400.0],
+        },
+    )
+
+
+def test_allocated_weights_sum_back_to_the_kreis_stock_per_household_size(
+    gemeinden: pd.DataFrame,
+) -> None:
+    """Allocation moves the Kreis stock across Gemeinden without creating any."""
+    allocated = allocate_bedarfsgemeinschaften_to_gemeinden(_kreis_stock(), gemeinden)
+    scheme = WeightingScheme.BEDARFSGEMEINSCHAFT_ALLOCATED_BY_POPULATION.value
+    total = allocated.query("household_size == 1")[scheme].sum()
+    assert total == pytest.approx(1000.0)
+
+
+def test_allocated_weights_split_the_stock_in_proportion_to_population(
+    gemeinden: pd.DataFrame,
+) -> None:
+    """Populations of 75 and 25 take 750 and 250 of a stock of 1,000."""
+    allocated = allocate_bedarfsgemeinschaften_to_gemeinden(_kreis_stock(), gemeinden)
+    scheme = WeightingScheme.BEDARFSGEMEINSCHAFT_ALLOCATED_BY_POPULATION.value
+    row = allocated.query("ags == '01001000' and household_size == 1").iloc[0]
+    assert row[scheme] == pytest.approx(750.0)
+
+
+def test_allocation_denominator_covers_gemeinden_without_a_cap(
+    caps: pd.DataFrame,
+    fallback: pd.DataFrame,
+    gemeinden: pd.DataFrame,
+) -> None:
+    """A Gemeinde whose cap is unknown keeps its share instead of ceding it."""
+    caps_with_one_gap = caps.assign(
+        kdu_cap=caps["kdu_cap"].where(caps["ags"] != "01002000"),
+    )
+    frame = build_cap_comparison(caps_with_one_gap, fallback, gemeinden)
+    allocated = allocate_bedarfsgemeinschaften_to_gemeinden(_kreis_stock(), gemeinden)
+    weighted = attach_weights(frame, allocated)
+    scheme = WeightingScheme.BEDARFSGEMEINSCHAFT_ALLOCATED_BY_POPULATION.value
+    covered = weighted.query("ags == '01001000' and household_size == 1").iloc[0]
+    assert covered[scheme] == pytest.approx(750.0)
+
+
+def test_allocated_national_total_does_not_exceed_the_reported_stock() -> None:
+    """A Kreis the Gemeinde table omits contributes nothing rather than more."""
+    stock = pd.DataFrame(
+        {
+            "district_ags": ["01001", "09999"],
+            "household_size": [1, 1],
+            "bedarfsgemeinschaften": [1000.0, 500.0],
+        },
+    )
+    gemeinden = pd.DataFrame(
+        {
+            "ags": ["01001000", "01002000"],
+            "district_ags": ["01001", "01001"],
+            "population": [75, 25],
+        },
+    )
+    allocated = allocate_bedarfsgemeinschaften_to_gemeinden(stock, gemeinden)
+    scheme = WeightingScheme.BEDARFSGEMEINSCHAFT_ALLOCATED_BY_POPULATION.value
+    assert allocated[scheme].sum() <= 1500.0
+
+
+def test_summarise_cap_difference_eur_reports_the_weighted_median(
+    caps: pd.DataFrame,
+    fallback: pd.DataFrame,
+    gemeinden: pd.DataFrame,
+) -> None:
+    """Differences of +100 € and -100 € have an unweighted median of zero."""
+    frame = build_cap_comparison(caps, fallback, gemeinden)
+    allocated = allocate_bedarfsgemeinschaften_to_gemeinden(_kreis_stock(), gemeinden)
+    weighted = attach_weights(frame, allocated)
+    table = summarise_cap_difference_eur(weighted)
+    row = table.query(
+        "household_size == 1"
+        " and statistic == 'median'"
+        " and weighting_scheme == 'gemeinde_unweighted'",
+    ).iloc[0]
+    assert row["measure"] == "cap_difference_eur"
+    assert row["value"] == pytest.approx(0.0)
+
+
+def test_summarise_cap_difference_eur_reports_every_decile(
+    caps: pd.DataFrame,
+    fallback: pd.DataFrame,
+    gemeinden: pd.DataFrame,
+) -> None:
+    """The euro summary carries p10 through p90 so the deciles need no hand work."""
+    frame = build_cap_comparison(caps, fallback, gemeinden)
+    allocated = allocate_bedarfsgemeinschaften_to_gemeinden(_kreis_stock(), gemeinden)
+    weighted = attach_weights(frame, allocated)
+    table = summarise_cap_difference_eur(weighted)
+    expected = {f"p{decile}0" for decile in range(1, 10)}
+    assert expected <= set(table["statistic"])

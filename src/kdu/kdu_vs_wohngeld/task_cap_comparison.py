@@ -9,12 +9,14 @@ from pytask import Product
 from kdu.config import catalog_path
 from kdu.figure_export import write_presentation_png
 from kdu.kdu_vs_wohngeld.cap_comparison import (
+    allocate_bedarfsgemeinschaften_to_gemeinden,
     attach_weights,
     bedarfsgemeinschaft_weights,
     build_cap_comparison,
     cap_ratio_spread_across_household_sizes,
     plot_cap_ratio_distribution,
     plot_cap_ratio_spread_distribution,
+    summarise_cap_difference_eur,
     summarise_cap_ratio,
     summarise_cap_ratio_spread,
 )
@@ -40,19 +42,27 @@ def task_cap_comparison(
     table_file: Annotated[Path, Product] = catalog_path("cap_comparison_table"),
 ) -> None:
     """Compare every local cap with its statutory fallback and write the results."""
+    gemeinden = pd.read_parquet(gemeinden_file)
     frame = build_cap_comparison(
         pd.read_parquet(caps_file),
         pd.read_parquet(fallback_file),
-        pd.read_parquet(gemeinden_file),
+        gemeinden,
     )
     weighted = attach_weights(
         frame,
-        bedarfsgemeinschaft_weights(pd.read_parquet(wohnkostenstatistik_file)),
+        allocate_bedarfsgemeinschaften_to_gemeinden(
+            bedarfsgemeinschaft_weights(pd.read_parquet(wohnkostenstatistik_file)),
+            gemeinden,
+        ),
     )
     spread = cap_ratio_spread_across_household_sizes(frame)
 
     table = pd.concat(
-        [summarise_cap_ratio(weighted), summarise_cap_ratio_spread(spread)],
+        [
+            summarise_cap_ratio(weighted),
+            summarise_cap_difference_eur(weighted),
+            summarise_cap_ratio_spread(spread),
+        ],
         ignore_index=True,
     )
 

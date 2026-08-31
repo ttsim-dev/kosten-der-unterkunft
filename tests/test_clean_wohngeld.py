@@ -22,6 +22,7 @@ def _parameters() -> WohngeldParameters:
                 (3, 2): 600.0,
             },
         ),
+        klimakomponente=MappingProxyType({1: 20.0, 2: 25.0}),
         legal_sources=MappingProxyType({"base_cap": ("Anlage 1 WoGG", "2025-01-01")}),
     )
 
@@ -42,11 +43,25 @@ def test_hoechstbetrag_is_looked_up_by_mietenstufe_and_household_size() -> None:
     assert row["wohngeld_hoechstbetrag"].iloc[0] == pytest.approx(600.0)
 
 
-def test_fallback_cap_is_the_hoechstbetrag_plus_ten_percent() -> None:
-    """The BSG fallback on a Höchstbetrag of 500 € is 550 €."""
+def test_fallback_cap_adds_the_klimakomponente_before_the_ten_percent() -> None:
+    """A Höchstbetrag of 500 € plus a Klimakomponente of 20 € gives 572 €."""
     result = build_wohngeld_fallback(_mietenstufen(), _parameters())
     row = result.query("ags == '01001000' and household_size == 1")
-    assert row["wohngeld_fallback_cap"].iloc[0] == pytest.approx(550.0)
+    assert row["wohngeld_fallback_cap"].iloc[0] == pytest.approx(572.0)
+
+
+def test_klimakomponente_is_carried_alongside_the_hoechstbetrag() -> None:
+    """The two parts of the benchmark stay separately readable in the table."""
+    result = build_wohngeld_fallback(_mietenstufen(), _parameters())
+    row = result.query("ags == '01001000' and household_size == 2")
+    assert row["wohngeld_klimakomponente"].iloc[0] == pytest.approx(25.0)
+
+
+def test_klimakomponente_does_not_vary_by_mietenstufe() -> None:
+    """§ 12 Absatz 7 WoGG sets one amount per household size for every Mietenstufe."""
+    result = build_wohngeld_fallback(_mietenstufen(), _parameters())
+    at_size_one = result.query("household_size == 1")["wohngeld_klimakomponente"]
+    assert set(at_size_one) == {20.0}
 
 
 def test_a_gemeinde_without_a_mietenstufe_keeps_its_rows_with_no_benchmark() -> None:

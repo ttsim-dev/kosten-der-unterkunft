@@ -55,8 +55,11 @@ class MeasureSpec:
 _SGB_BASIS = "Kosten der Unterkunft nach § 22 SGB II und § 35 SGB XII"
 
 _WOHNGELD_BASIS = (
-    "§ 12 Absatz 1 Wohngeldgesetz, Anlage 1, zuzüglich zehn Prozent "
-    "Sicherheitszuschlag (Bundessozialgericht B 4 AS 87/12 R)"
+    "Anlage 1 zu § 12 Absatz 1 Wohngeldgesetz zuzüglich Klimakomponente nach "
+    "§ 12 Absatz 7 Wohngeldgesetz, die Summe zuzüglich zehn Prozent "
+    "Sicherheitszuschlag (Bundessozialgericht B 4 AS 87/12 R; die Einbeziehung "
+    "der Klimakomponente folgt der einhelligen Instanzrechtsprechung und ist "
+    "bundessozialgerichtlich nicht geklärt)"
 )
 
 MEASURES: tuple[MeasureSpec, ...] = (
@@ -102,10 +105,14 @@ MEASURES: tuple[MeasureSpec, ...] = (
     MeasureSpec(
         key="wohngeld_fallback_cap",
         column="wohngeld_fallback_cap",
-        label="Wohngeld-Obergrenze (Höchstbetrag zuzüglich zehn Prozent)",
+        label=(
+            "Wohngeld-Obergrenze (Höchstbetrag und Klimakomponente, plus zehn Prozent)"
+        ),
         unit="€/Monat",
         hover_format=",.0f",
-        headline="Wohngeld-Höchstbetrag zuzüglich Sicherheitszuschlag",
+        headline=(
+            "Wohngeld-Höchstbetrag und Klimakomponente zuzüglich Sicherheitszuschlag"
+        ),
         context=f"{_WOHNGELD_BASIS} · Euro je Monat",
     ),
     MeasureSpec(
@@ -117,7 +124,8 @@ MEASURES: tuple[MeasureSpec, ...] = (
         headline=("Örtliche Mietobergrenze im Verhältnis zur Wohngeld-Obergrenze"),
         context=(
             "1,00 = die örtliche Obergrenze entspricht dem Wohngeld-Höchstbetrag "
-            "zuzüglich zehn Prozent · größer als 1,00 = örtlich wird mehr anerkannt"
+            "samt Klimakomponente zuzüglich zehn Prozent · größer als 1,00 = "
+            "örtlich wird mehr anerkannt"
         ),
         diverging_midpoint=1.0,
         reflects_kdu_cap=True,

@@ -7,7 +7,6 @@ import pytest
 
 from kdu.config import MAP_MEASURES
 from kdu.maps import (
-    _build_colourbar,
     _derive_ags,
     _merge_without_duplicating,
     build_hovertemplate,

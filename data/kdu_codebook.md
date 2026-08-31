@@ -45,6 +45,6 @@ Heizkosten are always granted separately and are not in this table.
 | `max_kalte_bk_eur_sqm` | numeric | Cold-cost cap expressed per m², where the document caps it that way instead |
 | `wogg_mietstufe` | numeric (1–7) | Mietstufe under § 12 Wohngeldgesetz |
 | `notes` | text | Caveats and comments |
-| `wogg_hoechstbetrag_eur_1p`, `_2p`, `_4p` | numeric | Höchstbetrag für Miete nach § 12 Abs. 1 WoGG in €/Monat for 1, 2 and 4 persons, looked up from `wogg_mietstufe` in Anlage 1 WoGG. **Base amount only** — the Klimakomponente of § 12 Abs. 7 and the Heizkostenentlastung of § 12 Abs. 6 are not included. 3p and 5p are absent here |
+| `wogg_hoechstbetrag_eur_1p`, `_2p`, `_4p` | numeric | Höchstbetrag für Miete nach § 12 Abs. 1 WoGG in €/Monat for 1, 2 and 4 persons, looked up from `wogg_mietstufe` in Anlage 1 WoGG. **Base amount only** — the Klimakomponente of § 12 Abs. 7 and the Heizkostenentlastung of § 12 Abs. 6 are not included. 3p and 5p are absent here. This is not the project's benchmark: `wohngeld_fallback_cap` in `bld/data/wohngeld_fallback.parquet` adds the Klimakomponente and then applies the 10 % Sicherheitszuschlag |
 | `kdu_vs_wogg_pct_1p`, `_2p`, `_4p` | numeric | The KdU Bruttokaltmiete cap relative to that Höchstbetrag, in percent. |
 | `haertefall_regelung` | 1 or empty | `1` where the source document itself prints a quantified Härtefall uplift as an alternative to the Richtwert. |
