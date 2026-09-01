@@ -24,11 +24,11 @@ The parameter file records that the regional values are unknown.
 
 ---
 
-# The Level Is Wrong for Small Households
+# In a stylised median-cap case, the gap is largest for one person
 
 One household through three rules. Warm, € per month, computed by GETTSIM 1.3:
 
-| household | GETTSIM | median Gemeinde | Wohngeld fallback | Gemeinden above GETTSIM |
+| household | GETTSIM | median Gemeinde | Wohngeld-based benchmark | Gemeinden above GETTSIM |
 |---|---|---|---|---|
 | 1 person, 50 m², 430.50 + 67.69 € | **448.37** | **498.19** | 485.91 | **78.6 %** |
 | 2 persons, 60 m², 507.98 + 99.88 € | **600.00** | **607.86** | 607.86 | **53.0 %** |
@@ -41,30 +41,41 @@ collected Richtlinien, Heizkosten the Bedarfsgemeinschaft-weighted mean of the B
 Wohnkostenstatistik. Both are assumptions — no Gemeinde-level distribution of rents
 actually paid exists — and the last column is one Gemeinde one weight.
 
-The error is not a level shift. For a single the national ceiling is about fifty euros
-short of the median Gemeinde; by four persons at 90 m² it does not bind at all, because
-that household is already under 10 €/m² warm. Numbers are GETTSIM 1.3's own column and
-move with a GETTSIM release, so they are stored with the version.
+The difference is not a level shift. For a single the national ceiling is about fifty
+euros below the median Gemeinde; by four persons at 90 m² it does not bind at all,
+because that household is already under 10 €/m² warm. This is one stylised dwelling per
+row, not a population average. Numbers are GETTSIM 1.3's own column and move with a
+GETTSIM release, so they are stored with the version.
 -->
 
 ---
 
-# The Functional Form Is Wrong Too
+# The current functional form differs from the Produkttheorie
 
 The Bundessozialgericht's **Produkttheorie**: only the *product* of angemessene
 Wohnfläche and angemessener Quadratmeterpreis binds. GETTSIM caps the two
 **separately**.
 
-- **43,930 of 54,900** collected cap records publish a single euro figure. Only
-  **2,430** are built from components — Träger publish the product.
+- Of **54,900** collected cap records, **43,930** publish a single Bruttokaltmiete euro
+  figure, **2,430** are summed from published components, and **8,540** carry no
+  published Bruttokaltmiete cap at all.
 
 - Admissible area for a single: **50 m² in 7,302** records against **45 m² in 1,628**.
   GETTSIM's 45 is the minority convention, **4.5 : 1**.
 
-- Single, 30 m², 15 €/m² warm: GETTSIM recognises 30 × 10 = **300 €**. A real
-  Richtlinie recognises the whole **~450 €**, because the product is under the cap.
+- One person, 30 m², Bruttokaltmiete **390.00 €** plus Heizkosten **60.00 €** =
+  **450.00 €** warm = **15.00 €/m²** warm (GETTSIM 1.3):
+  - GETTSIM: the area cap does **not** bind (30 m² against 45 m²); the price ceiling
+    **does** (15.00 against 10.00 €/m² warm) → **300.00 €** recognised warm, heating
+    inside that figure.
+  - Against a monthly Bruttokaltmiete ceiling of **430.50 €**: **390.00 €** cold
+    recognised in full, **plus 60.00 €** Heizkosten assessed separately.
 
 <!--
-This one is independent of the parameter value: even with a perfect euro per square
-metre, the separate caps misprice a small expensive flat. It comes back as proposal F.
+This one is independent of the parameter value. Because GETTSIM takes a minimum on each
+factor separately, slack on the area cap cannot offset the factor that binds — that is
+exactly what the Produkttheorie does not do, where only the product has to clear the
+threshold. Read the two sides as two functional forms that are not equal, not as one
+paying more than the other: the local side keeps Heizkosten as a separate assessment,
+and that separation is the whole point. It comes back as proposal F.
 -->

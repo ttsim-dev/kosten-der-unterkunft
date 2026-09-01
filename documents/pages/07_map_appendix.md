@@ -20,7 +20,7 @@ Appendix slide, reached by slide number if the live map does not come up. Kreis 
 
 # Fallback — Stop 3: Cap Ratio
 
-![Cap relative to the statutory fallback](../../bld/map/germany_map_cap_ratio.png)
+![Cap relative to the Wohngeld-based benchmark](../../bld/map/germany_map_cap_ratio.png)
 
 <!--
 Appendix slide, reached by slide number if the live map does not come up. Without the live map, Kreis Steinfurt has to

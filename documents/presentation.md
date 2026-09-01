@@ -8,13 +8,13 @@ info: |
 drawings:
   persist: false
 transition: fade
-title: The Parameter GETTSIM Cannot Look Up
+title: Local KdU Ceilings in a National Tax-Transfer Model
 mdc: true
 defaults:
   layout: center
 ---
 
-# The Parameter GETTSIM Cannot Look Up
+# Local KdU Ceilings in a National Tax-Transfer Model
 
 ### Local Kosten der Unterkunft and what they do to a tax-transfer model
 
@@ -26,6 +26,10 @@ src: ./pages/01_hook.md
 
 ---
 src: ./pages/02_gettsim_today.md
+---
+
+---
+src: ./pages/02b_data_and_estimands.md
 ---
 
 ---
