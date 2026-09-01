@@ -1,7 +1,7 @@
 """Whether each cap tracks the local rent level of the Gemeinde it applies to.
 
 The Mietenstufe of § 12 WoGG exists to place a Gemeinde on a national rent
-gradient, and the statutory fallback inherits that placement. The local KdU
+gradient, and the Wohngeld-based benchmark inherits that placement. The local KdU
 cap is set by the Kreis without reference to the Mietenstufe. This module
 measures how closely each of the two follows the mean Nettokaltmiete per
 square metre that the 2022 Zensus records for the same Gemeinde.
@@ -12,9 +12,10 @@ The comparison is deliberately asymmetric, and the asymmetry is the result:
   fallback follows market rents marginally more closely than the local cap
   does. The Mietenstufe performs the task it was designed for.
 - **Within a single Mietenstufe** the fallback cannot vary at all at a given
-  household size: it is a step function of the Mietenstufe, so its
-  correlation with market rents there is zero by construction. The local cap
-  is unconstrained in that space and still follows the local rent level.
+  household size: it is a step function of the Mietenstufe, so it has no
+  dispersion left there and its correlation with market rents is undefined
+  rather than zero. The local cap is unconstrained in that space and still
+  follows the local rent level.
 
 The second row is therefore not a failing of the fallback measured against
 something it could have done. It states that the local caps carry variation
@@ -39,9 +40,19 @@ from kdu.joins import merge_without_duplicating
 
 pio.templates.default = "plotly_dark"
 
-# Grey carries the statutory fallback, the accent colour the local cap.
+# Grey carries the Wohngeld-based benchmark, the accent colour the local cap.
 FALLBACK_COLOUR = "#8c8c8c"
 LOCAL_CAP_COLOUR = "#4c9be8"
+
+# Standard deviation below which a series counts as carrying no variation. An
+# absolute tolerance, applied to the standard deviation of series of logarithms.
+# The two magnitudes it separates are far apart: a cap that is constant in the
+# data leaves residuals of the order of 1e-16 after its group mean is
+# subtracted, while the smallest departure the caps can actually record — one
+# cent on a cap of a few hundred euro — is of the order of 1e-5 in logarithms.
+# Any value between those bounds decides the same cases; this one sits four
+# orders above the rounding and seven below the signal.
+CONSTANT_SERIES_TOLERANCE = 1e-12
 
 
 class CapKind(StrEnum):
@@ -50,7 +61,7 @@ class CapKind(StrEnum):
     LOCAL = "local_kdu_cap"
     """The maximum rent the responsible Kreis recognises."""
     FALLBACK = "wohngeld_fallback_cap"
-    """The Wohngeld Höchstbetrag raised by the Sicherheitszuschlag."""
+    """Höchstbetrag and Klimakomponente, raised by the Sicherheitszuschlag."""
 
     @property
     def column(self) -> str:
@@ -60,7 +71,7 @@ class CapKind(StrEnum):
     @property
     def label(self) -> str:
         """English label for figures and tables."""
-        return "Local KdU cap" if self is CapKind.LOCAL else "Statutory fallback"
+        return "Local KdU cap" if self is CapKind.LOCAL else "Wohngeld-based benchmark"
 
 
 class Comparison(StrEnum):
@@ -92,13 +103,17 @@ class CorrelationRow:
     comparison: Comparison
     """Whether the national rent gradient is included or removed."""
     correlation: float
-    """Pearson correlation of the two series in logarithms."""
+    """Pearson correlation of the two series in logarithms.
+
+    NaN where the cap is constant in the comparison space, because a series with
+    no dispersion leaves the coefficient undefined rather than zero.
+    """
     n_gemeinden: int
     """Gemeinden entering this correlation."""
-    mechanically_zero: bool
-    """Whether the cap is constant in this space, forcing the correlation to zero.
+    constant_within_comparison: bool
+    """Whether the cap is constant in this space, leaving the correlation undefined.
 
-    True for the statutory fallback within a Mietenstufe: at a fixed household
+    True for the Wohngeld-based benchmark within a Mietenstufe: at a fixed household
     size the fallback is a function of the Mietenstufe alone, so removing the
     Mietenstufe mean removes all of its variation.
     """
@@ -113,7 +128,7 @@ def build_analysis_frame(
 
     Args:
         kdu_caps: The local caps, keyed `ags` by `household_size`.
-        wohngeld_fallback: The statutory fallback, keyed the same way.
+        wohngeld_fallback: The Wohngeld-based benchmark, keyed the same way.
         zensus_rents: The Zensus rents, keyed `ags`.
 
     Returns:
@@ -169,8 +184,8 @@ def correlation_table(frame: pd.DataFrame) -> pd.DataFrame:
 
     Returns:
         One row per household size, cap and comparison, with the correlation,
-        the number of Gemeinden, and whether the correlation is zero by
-        construction.
+        the number of Gemeinden, and whether the cap is constant in that
+        comparison space and the correlation therefore undefined.
 
     """
     household_sizes = sorted(int(size) for size in frame["household_size"].unique())
@@ -189,20 +204,23 @@ def correlation_table(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def market_rent_correlation_figure(table: pd.DataFrame) -> go.Figure:
-    """Plot the four correlations at household size one as grouped bars.
+    """Plot the measured correlations at household size one as grouped bars.
 
     Args:
         table: The output of {func}`correlation_table`.
 
     Returns:
-        A figure contrasting the two caps in both comparison spaces, with the
-        fallback's within-Mietenstufe bar marked as zero by construction.
+        A figure contrasting the two caps in both comparison spaces. Where a cap
+        is constant in a space no bar is drawn, and an annotation states that
+        the correlation is unavailable rather than zero.
 
     """
     single = table.query("household_size == 1")
     figure = go.Figure()
     for cap in CapKind:
-        rows = single.loc[single["cap"] == cap].sort_values("comparison")
+        rows = single.loc[
+            (single["cap"] == cap) & ~single["constant_within_comparison"]
+        ].sort_values("comparison")
         figure.add_bar(
             x=[Comparison(value).label for value in rows["comparison"]],
             y=rows["correlation"],
@@ -210,13 +228,14 @@ def market_rent_correlation_figure(table: pd.DataFrame) -> go.Figure:
             marker_color=(
                 LOCAL_CAP_COLOUR if cap is CapKind.LOCAL else FALLBACK_COLOUR
             ),
-            text=[f"{value:.2f}" for value in rows["correlation"]],
+            text=[_bar_label(value) for value in rows["correlation"]],
             textposition="outside",
         )
     figure.add_annotation(
         x=Comparison.WITHIN_MIETENSTUFE.label,
         y=0.05,
         text=(
+            "n/a — constant within class<br>"
             "The fallback is a step function of the Mietenstufe,<br>"
             "so it cannot vary in this space at all."
         ),
@@ -260,10 +279,15 @@ def _correlation_row(
         comparison=comparison,
         correlation=_pearson_correlation(log_cap, log_rent),
         n_gemeinden=len(group),
-        mechanically_zero=(
+        constant_within_comparison=(
             cap is CapKind.FALLBACK and comparison is Comparison.WITHIN_MIETENSTUFE
         ),
     )
+
+
+def _bar_label(correlation: float) -> str:
+    """Return the number printed above a bar, or a marker where there is none."""
+    return "n/a" if np.isnan(correlation) else f"{correlation:.2f}"
 
 
 def _deviation_from_group_mean(
@@ -276,7 +300,28 @@ def _deviation_from_group_mean(
 
 
 def _pearson_correlation(first: np.ndarray, second: np.ndarray) -> float:
-    """Return the Pearson correlation, or zero where one series is constant."""
-    if np.std(first) == 0 or np.std(second) == 0:
-        return 0.0
+    """Return the Pearson correlation, or NaN where one series is constant.
+
+    A constant series has no dispersion to correlate, so the coefficient is a
+    ratio of zero to zero and is undefined rather than zero. Constancy is
+    decided against `CONSTANT_SERIES_TOLERANCE` because a series that is
+    constant in the data is not exactly constant in floating point: subtracting
+    a group mean from log caps of order six leaves residuals of the order of
+    the double-precision spacing at that magnitude, and feeding those to
+    {func}`numpy.corrcoef` would report the correlation of rounding error as a
+    result.
+
+    Args:
+        first: The first series.
+        second: The second series, of the same length.
+
+    Returns:
+        The Pearson correlation of the two series, or NaN where either of them
+        is constant to within the tolerance.
+
+    """
+    if np.isclose(
+        np.std(first), 0.0, rtol=0.0, atol=CONSTANT_SERIES_TOLERANCE
+    ) or np.isclose(np.std(second), 0.0, rtol=0.0, atol=CONSTANT_SERIES_TOLERANCE):
+        return float("nan")
     return float(np.corrcoef(first, second)[0, 1])

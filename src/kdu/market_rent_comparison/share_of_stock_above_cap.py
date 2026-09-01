@@ -6,7 +6,7 @@ and dwellings priced above the ceiling. The share on the far side of that
 line is what the cap means for someone looking for somewhere to live, and it
 does not depend on the cap binding on anybody's current rent.
 
-The share is computed for the local KdU cap and for the statutory fallback
+The share is computed for the local KdU cap and for the Wohngeld-based benchmark
 separately. The quantity that matters is the difference between the two: it
 is the error a tax-transfer simulation makes about the housing stock
 available to a household when it substitutes the fallback for the local rule.
@@ -53,7 +53,7 @@ from kdu.joins import merge_without_duplicating
 
 pio.templates.default = "plotly_dark"
 
-# Grey carries the statutory fallback, the accent colour the local cap.
+# Grey carries the Wohngeld-based benchmark, the accent colour the local cap.
 FALLBACK_COLOUR = "#8c8c8c"
 LOCAL_CAP_COLOUR = "#4c9be8"
 DIFFERENCE_COLOUR = "#e8a34c"
@@ -116,7 +116,7 @@ def build_gemeinde_shares(
 
     Args:
         kdu_caps: The local caps, keyed `ags` by `household_size`.
-        wohngeld_fallback: The statutory fallback, keyed the same way.
+        wohngeld_fallback: The Wohngeld-based benchmark, keyed the same way.
         zensus_rents: The Zensus rents and band counts, keyed `ags`.
         gemeinden: Gemeinde metadata, keyed `ags`, supplying `district_ags`.
         wohnkostenstatistik: The Bundesagentur record, supplying the kalte
@@ -247,7 +247,7 @@ def summarise_shares(gemeinde_shares: pd.DataFrame) -> pd.DataFrame:
     """
     quantities = {
         "Local KdU cap": "share_above_local_kdu_cap",
-        "Statutory fallback": "share_above_wohngeld_fallback_cap",
+        "Wohngeld-based benchmark": "share_above_wohngeld_fallback_cap",
         "Absolute difference": "absolute_share_difference",
     }
     household_sizes = sorted(
@@ -280,7 +280,11 @@ def share_of_stock_above_cap_figure(gemeinde_shares: pd.DataFrame) -> go.Figure:
     single = gemeinde_shares.query("household_size == 1")
     figure = go.Figure()
     for label, column, colour in (
-        ("Statutory fallback", "share_above_wohngeld_fallback_cap", FALLBACK_COLOUR),
+        (
+            "Wohngeld-based benchmark",
+            "share_above_wohngeld_fallback_cap",
+            FALLBACK_COLOUR,
+        ),
         ("Local KdU cap", "share_above_local_kdu_cap", LOCAL_CAP_COLOUR),
     ):
         figure.add_histogram(

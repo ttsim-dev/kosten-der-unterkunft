@@ -1,59 +1,59 @@
-# R1 — The Fallback Is Not a Safe Default
+# R1 — Local caps are below the benchmark in 60 % of Gemeinden
 
-**35.7 %** of Gemeinden set caps *below* Wohngeld-Höchstbetrag × 1.10.
+**59.9 %** of Gemeinden set caps *below* the Wohngeld-based benchmark.
 
 Cap difference, single adult, € per month — deciles:
 
-`−73.5 · −40.1 · −15.4 · 0.0 · +0.9 · +21.1 · +31.4 · +54.4 · +97.9`
+`−94.4 · −61.9 · −36.5 · −21.1 · −20.2 · 0.0 · +10.3 · +32.6 · +71.8`
 
-<img src="../../bld/kdu_vs_wohngeld/cap_comparison_distribution.png" style="max-height: 290px; margin: 1rem auto 0;" />
+<img src="../../bld/kdu_vs_wohngeld/cap_difference_distribution.png" style="max-height: 290px; margin: 1rem auto 0;" />
 
-**A default that is right on average is wrong by −74 € at the first decile and +98 € at the ninth.**
+**The local cap sits 20 € below the benchmark at the median Gemeinde, 94 € below at the first decile and 72 € above at the ninth.**
 
-<!-- The benchmark is not a floor: more than a third of Gemeinden are stricter than the Bundessozialgericht fallback. Read the two ends of the decile row out loud — that spread is what the fallback cannot represent. -->
+<!-- The benchmark is not a floor: 59.9 % of Gemeinden set a cap below it. Read the two ends of the decile row out loud — that spread is what a single national figure cannot represent. -->
 
 ---
 
-# R2 — "Unbiased" and "Too Generous" at Once
+# R2 — Caseload weighting increases the estimated mean gap
 
-Cap difference, single adult:
+Cap difference, single adult, € per month:
 
 | statistic | value | statement about |
 |---|---|---|
-| median | **+0.90 €** | the median Gemeinde |
-| mean over Gemeinden | **+10.02 €** | the average Gemeinde |
-| mean weighted by Bedarfsgemeinschaften | <span style="color:#ff6b6b">**−24.61 €**</span> | the average **claimant** |
+| median | **−20.22 €** | the median Gemeinde |
+| mean over Gemeinden | **−11.39 €** | the average Gemeinde |
+| mean over Bedarfsgemeinschaften, allocated by population | <span style="color:#9aa0a6">**−47.30 €**</span> | the average claimant **under a within-Kreis constant claimant rate** |
 
-<div style="font-size:1.6rem; text-align:center; margin: 0.5rem 0;">
-<span style="color:#7dd3a0">+0.90 €</span> · <span style="color:#7dd3a0">+10.02 €</span> · <span style="color:#ff6b6b">−24.61 €</span>
+Where within a Kreis its claimants live is **not observed**. Allocating each Kreis's published stock entirely to its **lowest-departure** Gemeinde gives **−65.84 €**; entirely to its **highest-departure** Gemeinde gives **−26.23 €**. Every within-Kreis placement of the published stocks lies between the two:
+
+<div style="font-size:1.5rem; text-align:center; margin: 0.4rem 0;">
+<span style="color:#9aa0a6">−65.84 € ≤ mean over Bedarfsgemeinschaften ≤ −26.23 €</span>
 </div>
 
-Two causes: skew, and *where the claimants are* — generous caps sit in thinly populated Kreise, cities set caps below the fallback.
+**The direction of the result does not depend on the allocation assumption at all; only the magnitude does.**
 
-Across 2.41 m Bedarfsgemeinschaften: ≈ **−0.7 bn € per year** of overstated housing need.
-
-**Pick your weighting scheme before you quote a bias; they do not share a sign.**
-
-<!-- The sign flips between the second and the third row, and nothing about the data changed — only the question. One Gemeinde one weight answers a question about places; Bedarfsgemeinschaft weighting answers one about people. -->
+<!-- Every cut points the same way: Träger recognise less than the benchmark. What the weighting changes is how much. One Gemeinde one weight answers a question about places; the allocated Bedarfsgemeinschaft weight answers one about people. Because where within a Kreis its claimants live is not observed, the population allocation is bracketed by putting the whole Kreis stock on the Gemeinde with the lowest departure and on the one with the highest departure — the extremes are taken on the cap difference, not on the cap itself, and the Gemeinde with a Kreis's lowest cap is the one with its lowest departure in only 57 % of Kreise, because the Mietenstufe varies within a Kreis. One direction of bias is signed: claimant rates are higher in the urban core of a Kreis and cities set lower caps, so a constant-rate allocation understates the claimant-weighted gap. The assumption leans toward the null of this very result. -->
 
 ---
 layout: two-cols
 ---
 
-# R3 — The Mietenstufe Does Not Repair It
+# R3 — Mietenstufe fixed effects absorb 41 % of log-cap variation
 
 ::left::
 
-Share of variance in log caps explained, household size 1, n = 9,397:
+Share of variance in log caps between groups, household size 1, n = 9,397:
 
-| classification | groups | variance share |
-|---|---|---|
-| Mietenstufe | 7 | **0.410** |
-| Bundesland | 16 | **0.457** |
-| Mietenstufe × Bundesland | 69 | 0.739 |
-| Kreis | 358 | 0.919 |
+| classification | groups | share | adjusted |
+|---|---|---|---|
+| Mietenstufe | 7 | **0.410** | **0.410** |
+| Bundesland | 16 | **0.457** | **0.456** |
+| Mietenstufe × Bundesland | 69 | 0.739 | 0.737 |
+| Kreis | 358 | 0.919 | 0.916 |
 
-Knowing only the Bundesland accounts for more of the variation than the statutory Mietenstufe.
+Knowing only the Bundesland accounts for more of the variation than the Mietenstufe.
+
+The degrees-of-freedom correction moves every row by less than **0.004**, against a Mietenstufe-to-Bundesland gap of **0.047**.
 
 Within Mietenstufe 1 the interdecile range is still **167.5 €**.
 
@@ -63,68 +63,47 @@ Within Mietenstufe 1 the interdecile range is still **167.5 €**.
 
 **Conditioning on the Mietenstufe leaves 59 % of the variation unaccounted for.**
 
-<!-- This is the lead result. The statutory instrument that looks like the regional control accounts for less of the variation than a classification with sixteen values and no housing content at all. -->
+<!-- This is the lead result. The instrument that looks like the regional control accounts for less of the variation than a classification with sixteen values and no housing content at all. In-sample fit rises mechanically with the number of groups, so the adjusted column is on the slide: with n = 9,397 the correction is an order of magnitude smaller than the gap it would have to close. -->
 
 ---
 
-# R4 — And the Residual Is Not Noise
+# R4 — Local caps retain systematic within-Mietenstufe variation
 
-Correlation with Zensus 2022 market rents, single adult, n = 9,281:
+Correlation with the mean incumbent Nettokaltmiete per square metre (Zensus 2022), single adult, n = 9,281:
 
 | | overall | within Mietenstufe |
 |---|---|---|
 | local KdU cap | 0.681 | **0.422** |
-| statutory fallback | 0.705 | **0.000** (by construction) |
+| Wohngeld-based benchmark | 0.705 | **n/a — constant within class** |
 
-Between Mietenstufen the fallback tracks rents slightly *better*.
+Between Mietenstufen the benchmark tracks the rent gradient slightly *better*.
 
-Within one, it cannot vary at all — while real caps still track market rents.
+Within one, the benchmark takes a single value at a fixed household size, so no correlation is defined — while local caps still covary with the local rent measure at **ρ = 0.42**.
 
-**The error is correlated with local housing costs — the thing a regional analysis conditions on. Confounding, not noise.**
-
-<!-- Concede the first column: between Mietenstufen the Mietenstufe tracks the rent gradient. The second column holds the residual variation, and it is systematic. -->
+<!-- Grant the first column: between Mietenstufen the Mietenstufe tracks the rent gradient. The second column holds the residual variation, and it is systematic rather than idiosyncratic. The benchmark cell is not a zero: at a fixed household size the benchmark has exactly one distinct value per Mietenstufe and a standard deviation of exactly zero, so the correlation is 0/0 and undefined. These are unweighted correlations across Gemeinden, and caps are set by roughly 358 Träger, so the observations are not independent and the n overstates how much information stands behind them. The Zensus measure is sitting-tenant rent in 2022, not asking rent. -->
 
 ---
 
-# R5 — What the Cap Prices Out
+# R5 — A single Gemeinde factor does not reproduce the household-size schedule
 
-The median Gemeinde prices **14.3 %** of its rented stock above the local cap — p10 **2.2 %**, p90 **37.5 %**.
-
-Substituting the fallback misstates that share by **5.9 pp** at the median.
-
-<img src="../../bld/market_rent_comparison/share_of_stock_above_cap.png" style="max-height: 300px; margin: 1rem auto 0;" />
-
-**Zensus reports Bestandsmieten, so this understates what a mover faces.**
-
-<!-- This is the question a claimant actually faces: not what the cap is, but how much of the local market it closes off. The Bestandsmieten caveat is mine to state, not the room's. -->
-
----
-
-# R6 — No Per-Gemeinde Correction Factor Works
-
-Within one Gemeinde the deviation from the fallback varies **across household sizes** by a median of **7.6 ratio points** — exceeding 5 points in **two thirds** of Gemeinden.
+Within one Gemeinde the departure from the benchmark varies **across household sizes** by a median of **6.4 ratio points** — exceeding 5 points in **56 %** of Gemeinden.
 
 <img src="../../bld/kdu_vs_wohngeld/cap_ratio_spread_distribution.png" style="max-height: 300px; margin: 1rem auto 0;" />
 
-**A single mother is size 2 in a Gemeinde whose error you calibrated at size 1. The error moves along the very dimension your subgroup is defined on.**
+**A single parent is size 2 in a Gemeinde whose difference you would have calibrated at size 1. The difference moves along the very dimension the subgroup is defined on.**
 
-<!-- If the deviation were a fixed per-Gemeinde offset, a lookup table of correction factors would close it. It is not: it moves with household size inside the same directive. -->
+<!-- If the departure were a fixed per-Gemeinde offset, a lookup table of correction factors would close it. It is not: it moves with household size inside the same directive. -->
 
 ---
 
-# R7 — The Margin Amplifies
+# R6 (appendix) — A stock-based rent-threshold index
 
-Euro of gross income at the transfer exit per euro of cap error:
+Share of the local rented stock whose rent sits above the cap. Substituting the Wohngeld-based benchmark for the local cap moves that share by **5.4 pp** at the median Gemeinde.
 
-| Modellhaushalt | amplification |
-|---|---|
-| Single adult, 35 | **1.86** |
-| Couple, children 8 and 14 | 1.62 |
-| Single parent, child 8 | 1.58 |
-| Single pensioner, 70 | **1.15** |
+For context only: the local cap itself sits above **14.3 %** of the median Gemeinde's rented stock.
 
-The pensioner is the outlier: a pension counts almost in full, while earnings keep part of each euro under the Erwerbstätigenfreibetrag of § 11b SGB II. The amplification is largely that disregard.
+<img src="../../bld/market_rent_comparison/share_of_stock_above_cap.png" style="max-height: 300px; margin: 1rem auto 0;" />
 
-**Each euro of cap error moves the eligibility boundary by 1.86 €.**
+**The difference survives the measurement; the level does not.**
 
-<!-- Amplification is a property of earners, not of households in general — the ranking here is the Erwerbstätigenfreibetrag showing through. The exit threshold assumes the actual Bruttokaltmiete sits at the higher of the two caps, so the cap binds in both scenarios. -->
+<!-- Appendix material, and lead on the difference: it is computed on the same stock with the same conversion, so the limitations largely difference out. Those limitations bind the level, which is why 14.3 % is context and not a result. The Zensus reports Bestandsmieten from 2022 rather than asking rents; the kalte Betriebskosten used to convert a Bruttokaltmiete cap into a Nettokaltmiete per square metre are published only at Kreis level and stand in for every Gemeinde inside it; the count covers the whole rented stock rather than dwellings within the admissible Wohnfläche; and shares inside a two-euro band are interpolated as if rents were uniform within it. On the rent-vintage channel alone the direction is signed: sitting-tenant rents are below asking rents, so a mover faces a tighter distribution than these shares describe. -->

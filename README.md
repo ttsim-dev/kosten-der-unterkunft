@@ -14,9 +14,13 @@ rules, measures the errors researchers make when using rule of thumb fallbacks, 
 reports how those errors change the gross income at which a household leaves the
 transfer system.
 
-The benchmark throughout is the **Wohngeld-Höchstbetrag times 1.10** — the standard the
-Bundessozialgericht prescribes where a Kreis has published no schlüssiges Konzept, and
-therefore the legally correct comparator rather than an arbitrary one.
+The benchmark throughout is the **Wohngeld-Höchstbetrag plus the Klimakomponente, the
+sum times 1.10**. The Sicherheitszuschlag of 10 % is the standard the
+Bundessozialgericht prescribes where a Kreis has published no schlüssiges Konzept (BSG,
+12.12.2013 - B 4 AS 87/12 R). Adding the Klimakomponente of § 12 Absatz 7 WoGG before
+that markup follows consistent instance case law and is unresolved at the
+Bundessozialgericht; `src/kdu/data_management/clean_wohngeld.py` records the decisions
+and their reasoning.
 
 ## Installation and use
 
