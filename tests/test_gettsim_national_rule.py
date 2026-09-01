@@ -16,9 +16,14 @@ from kdu.eligibility.gettsim_national_rule import (
     GETTSIM_BERECHTIGTE_WOHNFLAECHE_BASE_SQM,
     GETTSIM_BERECHTIGTE_WOHNFLAECHE_PER_FURTHER_PERSON_SQM,
     GETTSIM_MIETOBERGRENZE_EUR_PER_SQM,
+    ILLUSTRATIVE_DWELLING_BRUTTOKALTMIETE_EUR_PER_MONTH,
+    ILLUSTRATIVE_DWELLING_HEIZKOSTEN_EUR_PER_MONTH,
+    ILLUSTRATIVE_DWELLING_WOHNFLAECHE_SQM,
     HousingAssumption,
+    SeparateCapsComparison,
     build_housing_assumptions,
     compare_recognised_housing_costs,
+    compare_separate_caps_to_monthly_ceiling,
     gettsim_recognised_warm_eur_per_month,
     median_local_cap_eur_per_month,
     modal_admissible_area_sqm,
@@ -213,3 +218,139 @@ def test_comparison_records_the_gettsim_version(
         household_sizes=(1,),
     )
     assert comparison["gettsim_version"].iloc[0] != ""
+
+
+@pytest.fixture
+def separate_caps_comparison() -> SeparateCapsComparison:
+    """The slide's dwelling: 30 m², 390 EUR cold plus 60 EUR heating, cap 430.50."""
+    return compare_separate_caps_to_monthly_ceiling(
+        wohnflaeche_sqm=ILLUSTRATIVE_DWELLING_WOHNFLAECHE_SQM,
+        bruttokaltmiete_m=ILLUSTRATIVE_DWELLING_BRUTTOKALTMIETE_EUR_PER_MONTH,
+        heizkosten_m=ILLUSTRATIVE_DWELLING_HEIZKOSTEN_EUR_PER_MONTH,
+        local_bruttokaltmiete_cap_m=430.50,
+    )
+
+
+def test_separate_caps_comparison_inputs_are_finite_and_positive(
+    separate_caps_comparison: SeparateCapsComparison,
+) -> None:
+    """Area, both rent components and the cap all survive construction."""
+    assert all(
+        np.isfinite(value) and value > 0.0
+        for value in (
+            separate_caps_comparison.wohnflaeche_sqm,
+            separate_caps_comparison.bruttokaltmiete_m,
+            separate_caps_comparison.heizkosten_m,
+            separate_caps_comparison.local_bruttokaltmiete_cap_m,
+        )
+    )
+
+
+def test_separate_caps_comparison_warmmiete_is_the_sum_of_its_components(
+    separate_caps_comparison: SeparateCapsComparison,
+) -> None:
+    """The warm rent is the Bruttokaltmiete plus the Heizkosten, 390 + 60."""
+    assert np.isclose(
+        separate_caps_comparison.warmmiete_m,
+        separate_caps_comparison.bruttokaltmiete_m
+        + separate_caps_comparison.heizkosten_m,
+        atol=1e-9,
+    )
+
+
+def test_separate_caps_comparison_rejects_a_non_finite_heizkosten() -> None:
+    """A Heizkosten that did not survive construction fails loudly."""
+    with pytest.raises(ValueError, match="finite and positive"):
+        compare_separate_caps_to_monthly_ceiling(
+            wohnflaeche_sqm=30.0,
+            bruttokaltmiete_m=390.0,
+            heizkosten_m=float("nan"),
+            local_bruttokaltmiete_cap_m=430.50,
+        )
+
+
+def test_separate_caps_comparison_gettsim_recognises_the_area_times_the_ceiling(
+    separate_caps_comparison: SeparateCapsComparison,
+) -> None:
+    """GETTSIM recognises 30 m² × 10 EUR/m² warm = 300 EUR warm per month."""
+    assert np.isclose(
+        separate_caps_comparison.gettsim_recognised_warm_m,
+        300.0,
+        atol=1e-6,
+    )
+
+
+def test_separate_caps_comparison_gettsim_matches_the_literal_reference(
+    separate_caps_comparison: SeparateCapsComparison,
+) -> None:
+    """GETTSIM's figure agrees with the transcribed scalar rule."""
+    assert np.isclose(
+        separate_caps_comparison.gettsim_recognised_warm_m,
+        _reference_recognised_warm_eur_per_month(390.0, 60.0, 30.0, 1),
+        atol=1e-6,
+    )
+
+
+def test_separate_caps_comparison_area_cap_does_not_bind(
+    separate_caps_comparison: SeparateCapsComparison,
+) -> None:
+    """30 m² is below the 45 m² admissible for a single, so the area cap is slack."""
+    assert separate_caps_comparison.gettsim_area_cap_binds is False
+
+
+def test_separate_caps_comparison_price_ceiling_binds(
+    separate_caps_comparison: SeparateCapsComparison,
+) -> None:
+    """450 EUR warm over 30 m² is 15 EUR/m², above the 10 EUR/m² ceiling."""
+    assert separate_caps_comparison.gettsim_price_ceiling_binds is True
+
+
+def test_separate_caps_comparison_reports_the_actual_warm_price_per_square_metre(
+    separate_caps_comparison: SeparateCapsComparison,
+) -> None:
+    """450 EUR warm over 30 m² is 15.00 EUR per square metre and month."""
+    assert np.isclose(
+        separate_caps_comparison.warmmiete_je_qm_m,
+        15.0,
+        atol=1e-6,
+    )
+
+
+def test_separate_caps_comparison_local_cap_recognises_the_whole_bruttokaltmiete(
+    separate_caps_comparison: SeparateCapsComparison,
+) -> None:
+    """390 EUR cold is below the 430.50 EUR ceiling, so all of it is recognised."""
+    assert np.isclose(
+        separate_caps_comparison.local_recognised_bruttokaltmiete_m,
+        390.0,
+        atol=1e-6,
+    )
+
+
+def test_separate_caps_comparison_local_heizkosten_are_assessed_separately(
+    separate_caps_comparison: SeparateCapsComparison,
+) -> None:
+    """Heating sits outside the Bruttokaltmiete ceiling and is recognised in full."""
+    assert np.isclose(
+        separate_caps_comparison.local_recognised_heizkosten_m,
+        60.0,
+        atol=1e-6,
+    )
+
+
+def test_separate_caps_comparison_caps_the_bruttokaltmiete_at_the_ceiling() -> None:
+    """A Bruttokaltmiete above the ceiling is recognised only up to the ceiling."""
+    comparison = compare_separate_caps_to_monthly_ceiling(
+        wohnflaeche_sqm=30.0,
+        bruttokaltmiete_m=500.0,
+        heizkosten_m=60.0,
+        local_bruttokaltmiete_cap_m=430.50,
+    )
+    assert np.isclose(comparison.local_recognised_bruttokaltmiete_m, 430.50, atol=1e-6)
+
+
+def test_separate_caps_comparison_records_the_gettsim_version(
+    separate_caps_comparison: SeparateCapsComparison,
+) -> None:
+    """The figure is GETTSIM's own, so the release it came from travels with it."""
+    assert separate_caps_comparison.gettsim_version != ""

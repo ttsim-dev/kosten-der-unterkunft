@@ -20,6 +20,8 @@ therefore never drives a difference between them.
 This module exports:
 
 - `gettsim_recognised_warm_eur_per_month` — GETTSIM's own recognised amount
+- `compare_separate_caps_to_monthly_ceiling` — one dwelling under GETTSIM's two
+  separate caps and under a single monthly Bruttokaltmiete ceiling
 - `modal_admissible_area_sqm` and `median_local_cap_eur_per_month` — the two
   assumptions, read off the collected Richtlinien rather than asserted
 - `build_housing_assumptions` — the assumed dwelling, one per household size
@@ -83,6 +85,18 @@ GETTSIM_MIETOBERGRENZE_EUR_PER_SQM = 10.0
 GETTSIM_BERECHTIGTE_WOHNFLAECHE_BASE_SQM = 45.0
 GETTSIM_BERECHTIGTE_WOHNFLAECHE_PER_FURTHER_PERSON_SQM = 15.0
 
+# The small expensive dwelling that separates the two functional forms.
+#
+# A single adult in 30 square metres at 390 euro Bruttokaltmiete and 60 euro
+# Heizkosten. The area is below what GETTSIM admits and the warm rent per square
+# metre is above what it allows, so exactly one of GETTSIM's two separate caps
+# binds while the monthly Bruttokaltmiete ceiling of the median Gemeinde does
+# not bind at all. The dwelling is chosen to make that difference visible; it is
+# an illustration and not an observation from any of the collected Richtlinien.
+ILLUSTRATIVE_DWELLING_WOHNFLAECHE_SQM = 30.0
+ILLUSTRATIVE_DWELLING_BRUTTOKALTMIETE_EUR_PER_MONTH = 390.0
+ILLUSTRATIVE_DWELLING_HEIZKOSTEN_EUR_PER_MONTH = 60.0
+
 
 @dataclass(frozen=True)
 class HousingAssumption:
@@ -112,6 +126,122 @@ class HousingAssumption:
     """
     heizkosten_m: float
     """Recognised Heizkosten, from the Wohnkostenstatistik of the Bundesagentur."""
+
+
+@dataclass(frozen=True)
+class SeparateCapsComparison:
+    """One dwelling under two functional forms, component by component.
+
+    GETTSIM caps an area and a warm price per square metre separately and
+    multiplies the two capped factors; a Richtlinie caps one monthly
+    Bruttokaltmiete and assesses Heizkosten beside it. The two are different
+    functions of the same dwelling, and the components are kept apart here
+    because merging them into a single euro figure would hide the very
+    separation the comparison is about.
+
+    All amounts are euro per month at the household level.
+    """
+
+    wohnflaeche_sqm: float
+    """Wohnfläche of the dwelling, square metres."""
+    bruttokaltmiete_m: float
+    """Actual Bruttokaltmiete."""
+    heizkosten_m: float
+    """Actual Heizkosten."""
+    warmmiete_m: float
+    """Actual warm rent, the sum of Bruttokaltmiete and Heizkosten."""
+    warmmiete_je_qm_m: float
+    """Actual warm rent per square metre, euro per square metre and month."""
+    gettsim_admissible_wohnflaeche_sqm: float
+    """The area GETTSIM admits for a household of this size, square metres."""
+    gettsim_price_ceiling_eur_per_sqm: float
+    """GETTSIM's ceiling on the warm rent per square metre."""
+    gettsim_area_cap_binds: bool
+    """Whether the admissible area is below the area actually occupied."""
+    gettsim_price_ceiling_binds: bool
+    """Whether the actual warm rent per square metre exceeds the ceiling."""
+    gettsim_recognised_warm_m: float
+    """What GETTSIM recognises, a warm amount with Heizkosten inside it.
+
+    Computed by GETTSIM itself rather than by transcribing its formula.
+    """
+    local_bruttokaltmiete_cap_m: float
+    """The monthly Bruttokaltmiete ceiling the dwelling is held against."""
+    local_recognised_bruttokaltmiete_m: float
+    """The Bruttokaltmiete recognised under that ceiling."""
+    local_recognised_heizkosten_m: float
+    """The Heizkosten recognised beside it, assessed on their own."""
+    gettsim_version: str
+    """The GETTSIM release `gettsim_recognised_warm_m` was taken from."""
+
+
+def compare_separate_caps_to_monthly_ceiling(
+    wohnflaeche_sqm: float,
+    bruttokaltmiete_m: float,
+    heizkosten_m: float,
+    local_bruttokaltmiete_cap_m: float,
+) -> SeparateCapsComparison:
+    """Put one dwelling through GETTSIM's rule and through a monthly ceiling.
+
+    GETTSIM's side is computed by calling GETTSIM, so the figure is the
+    installed release's own and moves with it. The Richtlinie side applies the
+    monthly Bruttokaltmiete ceiling to the Bruttokaltmiete alone and leaves the
+    Heizkosten beside it, which is how a Träger assesses them.
+
+    The two sides are therefore not two levels of one quantity: GETTSIM's is a
+    single warm amount, the Richtlinie's is a recognised cold amount plus a
+    separately recognised heating amount. They are reported as such.
+
+    Args:
+        wohnflaeche_sqm: Wohnfläche of the dwelling, square metres.
+        bruttokaltmiete_m: Actual Bruttokaltmiete, euro per month.
+        heizkosten_m: Actual Heizkosten, euro per month.
+        local_bruttokaltmiete_cap_m: The monthly Bruttokaltmiete ceiling, euro
+            per month.
+
+    Returns:
+        The components of both sides for a one-person household.
+
+    Raises:
+        ValueError: If any input is not finite and positive.
+
+    """
+    _fail_if_dwelling_is_not_usable(
+        wohnflaeche_sqm=wohnflaeche_sqm,
+        bruttokaltmiete_m=bruttokaltmiete_m,
+        heizkosten_m=heizkosten_m,
+        local_bruttokaltmiete_cap_m=local_bruttokaltmiete_cap_m,
+    )
+    warmmiete_m = bruttokaltmiete_m + heizkosten_m
+    warmmiete_je_qm_m = warmmiete_m / wohnflaeche_sqm
+    recognised = gettsim_recognised_warm_eur_per_month(
+        household_sizes=np.array([1]),
+        bruttokaltmiete=np.array([bruttokaltmiete_m]),
+        heizkosten=np.array([heizkosten_m]),
+        wohnflaeche=np.array([wohnflaeche_sqm]),
+    )
+    return SeparateCapsComparison(
+        wohnflaeche_sqm=wohnflaeche_sqm,
+        bruttokaltmiete_m=bruttokaltmiete_m,
+        heizkosten_m=heizkosten_m,
+        warmmiete_m=warmmiete_m,
+        warmmiete_je_qm_m=float(round_currency(warmmiete_je_qm_m)),
+        gettsim_admissible_wohnflaeche_sqm=GETTSIM_BERECHTIGTE_WOHNFLAECHE_BASE_SQM,
+        gettsim_price_ceiling_eur_per_sqm=GETTSIM_MIETOBERGRENZE_EUR_PER_SQM,
+        gettsim_area_cap_binds=bool(
+            wohnflaeche_sqm > GETTSIM_BERECHTIGTE_WOHNFLAECHE_BASE_SQM,
+        ),
+        gettsim_price_ceiling_binds=bool(
+            warmmiete_je_qm_m > GETTSIM_MIETOBERGRENZE_EUR_PER_SQM,
+        ),
+        gettsim_recognised_warm_m=float(round_currency(recognised[0])),
+        local_bruttokaltmiete_cap_m=local_bruttokaltmiete_cap_m,
+        local_recognised_bruttokaltmiete_m=float(
+            round_currency(min(bruttokaltmiete_m, local_bruttokaltmiete_cap_m)),
+        ),
+        local_recognised_heizkosten_m=float(round_currency(heizkosten_m)),
+        gettsim_version=gettsim_version(),
+    )
 
 
 def gettsim_recognised_warm_eur_per_month(
@@ -413,6 +543,24 @@ def _compare_one_household_size(
     }
 
 
+def _fail_if_dwelling_is_not_usable(
+    wohnflaeche_sqm: float,
+    bruttokaltmiete_m: float,
+    heizkosten_m: float,
+    local_bruttokaltmiete_cap_m: float,
+) -> None:
+    """Reject a dwelling whose numbers cannot carry the comparison."""
+    for name, value in (
+        ("wohnflaeche_sqm", wohnflaeche_sqm),
+        ("bruttokaltmiete_m", bruttokaltmiete_m),
+        ("heizkosten_m", heizkosten_m),
+        ("local_bruttokaltmiete_cap_m", local_bruttokaltmiete_cap_m),
+    ):
+        if not np.isfinite(value) or value <= 0.0:
+            msg = f"{name} must be finite and positive, got {value}"
+            raise ValueError(msg)
+
+
 def _fail_if_inputs_are_inconsistent(
     household_sizes: NDArray[np.int_],
     bruttokaltmiete: NDArray[np.float64],
@@ -453,10 +601,15 @@ __all__ = [
     "GETTSIM_BERECHTIGTE_WOHNFLAECHE_BASE_SQM",
     "GETTSIM_BERECHTIGTE_WOHNFLAECHE_PER_FURTHER_PERSON_SQM",
     "GETTSIM_MIETOBERGRENZE_EUR_PER_SQM",
+    "ILLUSTRATIVE_DWELLING_BRUTTOKALTMIETE_EUR_PER_MONTH",
+    "ILLUSTRATIVE_DWELLING_HEIZKOSTEN_EUR_PER_MONTH",
+    "ILLUSTRATIVE_DWELLING_WOHNFLAECHE_SQM",
     "POLICY_DATE",
     "HousingAssumption",
+    "SeparateCapsComparison",
     "build_housing_assumptions",
     "compare_recognised_housing_costs",
+    "compare_separate_caps_to_monthly_ceiling",
     "gettsim_comparison_table",
     "gettsim_recognised_warm_eur_per_month",
     "gettsim_version",
