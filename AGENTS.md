@@ -105,7 +105,7 @@ to rebuild, because nothing in it is downloaded.
 Germany and are never keys. The synthetic `fid` connects the joined frame to Plotly's
 GeoJSON features. Every join is guarded against silently duplicating or dropping rows.
 
-**Caps vary within a Kreis.** 209 of 357 Kreise publish Gemeinde-specific figures —
+**Caps vary within a Kreis.** 210 of 358 Kreise publish Gemeinde-specific figures —
 Kreis Steinfurt has 24 Gemeinden and 23 distinct caps under a single directive. The
 Kreis is the Träger that decides; it is not the unit at which the rule applies. Do not
 treat a Kreis as one observation without saying why.
