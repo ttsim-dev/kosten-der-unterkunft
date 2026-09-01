@@ -11,7 +11,9 @@ on. It is the standard every local rule is measured against here, in two ways:
   log ratio;
 - the spread of that ratio across household sizes within one Gemeinde, which
   states how far a single per-Gemeinde correction factor can carry a
-  tax-transfer model that has only the Grenze ohne schlüssiges Konzept.
+  tax-transfer model that has only the Grenze ohne schlüssiges Konzept, and
+  which Gemeinden sit above that Grenze at one household size and below it at
+  another.
 
 The functions here are pure: they take frames and return frames or figures.
 {mod}`kdu.kdu_vs_wohngeld.task_cap_comparison` owns the reading and writing.
@@ -46,6 +48,30 @@ SPREAD_HOUSEHOLD_SIZES: tuple[int, ...] = (1, 2, 3, 4)
 # A spread of this many ratio points or more means no single correction factor
 # per Gemeinde reproduces the local cap at every household size.
 MATERIAL_SPREAD_THRESHOLD = 0.05
+
+# The two household sizes the ratio is drawn against each other at, and the
+# column each is carried in. Household size one is the size every Träger
+# publishes; four is the largest size at which enough of them do to compare
+# regions.
+SCATTER_RATIO_COLUMNS: MappingProxyType[int, str] = MappingProxyType(
+    {
+        1: "cap_ratio_single_adult",
+        4: "cap_ratio_four_person",
+    },
+)
+
+# Empty margin kept either side of the drawn ratio range, in ratio points.
+RATIO_AXIS_PADDING = 0.03
+
+# Many Gemeinden of one Kreis share a single cap and a single Mietenstufe, so
+# their points coincide exactly. At this opacity a coincident stack still reads
+# darker than a lone Gemeinde, and the body of the cloud stays legible.
+RATIO_MARKER_OPACITY = 0.25
+RATIO_MARKER_SIZE = 5
+
+# The crosshair marking the Grenze ohne schlüssiges Konzept on both axes. It
+# separates the four quadrants without competing with the identity line.
+RATIO_RULE_OPACITY = 0.45
 
 # The unemphasised series and the one carrying the claim.
 NEUTRAL_COLOUR = "#5f6368"
@@ -93,21 +119,16 @@ PROJECTED_AXIS_TITLE_FONT_SIZE = 24
 PROJECTED_ANNOTATION_FONT_SIZE = 20
 
 # Empty space kept above the tallest bar, as a multiple of its height, so the
-# annotations sit clear of the data rather than on top of it.
-DIFFERENCE_HEADROOM_FACTOR = 1.85
+# decile labels sit clear of the data rather than on top of it.
+DIFFERENCE_HEADROOM_FACTOR = 1.25
 
 # The plot area's own colour, put behind a label so that a decile line crossing
 # it does not run through the type.
 ANNOTATION_BACKGROUND = "rgba(255, 255, 255, 0.85)"
 
-# Where each annotation sits in the empty band above the bars, in fractions of
-# the plot area. The deciles share the top line; the two annotations that both
-# belong to the line marking the Grenze ohne schlüssiges Konzept take one line
-# each below it, because their text is long enough to reach across a labelled
-# decile.
+# Where the decile labels sit in the empty band above the bars, as a fraction
+# of the plot area's height.
 DECILE_LABEL_HEIGHT = 0.99
-BENCHMARK_LABEL_HEIGHT = 0.86
-POINT_MASS_LABEL_HEIGHT = 0.75
 
 
 def build_cap_comparison(
@@ -188,6 +209,71 @@ def cap_ratio_spread_across_household_sizes(frame: pd.DataFrame) -> pd.DataFrame
     complete = by_size.dropna()
     spread = (complete.max(axis=1) - complete.min(axis=1)).rename("cap_ratio_spread")
     return spread.reset_index()
+
+
+def cap_ratio_pairs_across_household_sizes(frame: pd.DataFrame) -> pd.DataFrame:
+    """Pair each Gemeinde's departure at household size one with the one at four.
+
+    The pair is what a single per-Gemeinde correction factor is a claim about:
+    a factor that reproduces the local cap at both sizes exists only where the
+    two ratios coincide, so the departure of a pair from equality is the
+    distance a factor cannot cover.
+
+    Args:
+        frame: The output of {func}`build_cap_comparison`.
+
+    Returns:
+        One row per Gemeinde observed at both sizes in
+        {data}`SCATTER_RATIO_COLUMNS`, with one column per size named there. A
+        Gemeinde observed at only one of the two is absent, because a pair
+        needs both coordinates.
+
+    """
+    _fail_if_columns_absent(frame, ("ags", "household_size", "cap_ratio"))
+    by_size = (
+        frame.loc[
+            frame["household_size"].isin(SCATTER_RATIO_COLUMNS),
+            ["ags", "household_size", "cap_ratio"],
+        ]
+        .dropna(subset=["cap_ratio"])
+        .pivot_table(
+            index="ags",
+            columns="household_size",
+            values="cap_ratio",
+            aggfunc="mean",
+        )
+        .reindex(columns=list(SCATTER_RATIO_COLUMNS))
+        .dropna()
+    )
+    return by_size.rename(columns=dict(SCATTER_RATIO_COLUMNS)).reset_index()
+
+
+def share_with_sign_flip(pairs: pd.DataFrame) -> float:
+    """Return the share of Gemeinden that change side between the two sizes.
+
+    A Gemeinde flips when its cap exceeds the Grenze ohne schlüssiges Konzept
+    at one of the two household sizes and falls short of it at the other. Such
+    a Gemeinde cannot be reached from that Grenze by any positive factor that
+    is applied at every household size, whatever its value, so the share is the
+    part of the correction-factor claim that no calibration answers.
+
+    A cap equal to that Grenze counts as not above it, so a Gemeinde sitting on
+    the Grenze at both sizes does not flip.
+
+    Args:
+        pairs: The output of {func}`cap_ratio_pairs_across_household_sizes`.
+
+    Returns:
+        The flipping Gemeinden as a fraction of `pairs`, or zero if empty.
+
+    """
+    _fail_if_columns_absent(pairs, tuple(SCATTER_RATIO_COLUMNS.values()))
+    if pairs.empty:
+        return 0.0
+    single, four = SCATTER_RATIO_COLUMNS.values()
+    above_at_one = pairs[single] > 1.0
+    above_at_four = pairs[four] > 1.0
+    return float((above_at_one != above_at_four).mean())
 
 
 def bedarfsgemeinschaft_weights(wohnkostenstatistik: pd.DataFrame) -> pd.DataFrame:
@@ -601,12 +687,10 @@ def plot_cap_difference_distribution(frame: pd.DataFrame) -> go.Figure:
     Returns:
         A histogram of `cap_difference_eur` at household size one under one
         Gemeinde one weight. The tenth, fiftieth and ninetieth percentile are
-        drawn and labelled, the Grenze ohne schlüssiges Konzept is marked at
-        zero by a heavier dashed line, and the Gemeinden sitting on it are
-        counted beside that line. Every label sits in a band of empty space
-        above the tallest bar. The axis titles carry the estimand, the unit,
-        the weighting and the number of Gemeinden, the last read from `frame`
-        rather than fixed.
+        drawn and labelled in a band of empty space above the tallest bar, and
+        the Grenze ohne schlüssiges Konzept is marked at zero by a heavier
+        dashed line carrying no label of its own. The axis titles carry the
+        estimand, the unit and the weighting.
 
     """
     _fail_if_columns_absent(frame, ("household_size", "cap_difference_eur"))
@@ -619,8 +703,7 @@ def plot_cap_difference_distribution(frame: pd.DataFrame) -> go.Figure:
         color_discrete_sequence=[ACCENT_COLOUR],
         labels={
             "cap_difference_eur": (
-                "Local one-person KdU cap minus Grenze ohne schlüssiges Konzept, "
-                "EUR per month"
+                "Angemessene KdU minus Wohngeld-based Proxy, Euro per month"
             ),
         },
     )
@@ -631,9 +714,8 @@ def plot_cap_difference_distribution(frame: pd.DataFrame) -> go.Figure:
         line_dash="dash",
         line_color=NEUTRAL_COLOUR,
     )
-    _annotate_benchmark(figure, count_gemeinden_at_benchmark(frame))
     figure.update_layout(
-        yaxis_title=(f"Gemeinden (one Gemeinde one weight; n = {len(differences):,})"),
+        yaxis_title="# Gemeinden (unweighted)",
         showlegend=False,
         bargap=0.05,
         font_size=PROJECTED_BODY_FONT_SIZE,
@@ -655,51 +737,87 @@ def plot_cap_difference_distribution(frame: pd.DataFrame) -> go.Figure:
     return figure
 
 
-def plot_cap_ratio_spread_distribution(spread: pd.DataFrame) -> go.Figure:
-    """Draw how far the ratio moves across household sizes within a Gemeinde.
+def plot_cap_ratio_by_household_size(pairs: pd.DataFrame) -> go.Figure:
+    """Draw each Gemeinde's departure at household size one against the one at four.
+
+    A Gemeinde whose cap is a fixed multiple of the Grenze ohne schlüssiges
+    Konzept lands on the identity line, so the drawn cloud's distance from that
+    line is what a single per-Gemeinde correction factor cannot reproduce. The
+    crosshair at one cuts the plane into four quadrants: the two off-diagonal
+    ones hold the Gemeinden whose cap is above the Grenze at one size and below
+    it at the other, which {func}`share_with_sign_flip` counts.
+
+    Both axes are given the same explicit range rather than a scale anchor,
+    which would widen the drawn range past the data.
 
     Args:
-        spread: The output of {func}`cap_ratio_spread_across_household_sizes`.
+        pairs: The output of {func}`cap_ratio_pairs_across_household_sizes`.
 
     Returns:
-        An empirical cumulative distribution with the material threshold
-        marked.
+        One marker per Gemeinde over the identity line, with the axis titles
+        carrying the estimand and the household size each is read at.
 
     """
-    figure = px.ecdf(
-        spread.dropna(subset=["cap_ratio_spread"]),
-        x="cap_ratio_spread",
-        color_discrete_sequence=[ACCENT_COLOUR],
-        labels={
-            "cap_ratio_spread": (
-                "Largest minus smallest ratio of local cap to Grenze ohne "
-                "schlüssiges Konzept,<br>over household sizes 1 to 4"
-            ),
-        },
+    _fail_if_columns_absent(pairs, tuple(SCATTER_RATIO_COLUMNS.values()))
+    single, four = SCATTER_RATIO_COLUMNS.values()
+    limits = _shared_ratio_range(pairs[single], pairs[four])
+
+    figure = go.Figure()
+    figure.add_trace(
+        go.Scatter(
+            x=list(limits),
+            y=list(limits),
+            mode="lines",
+            line={"color": NEUTRAL_COLOUR, "width": 2, "dash": "dash"},
+            showlegend=False,
+            hoverinfo="skip",
+        ),
+    )
+    figure.add_trace(
+        go.Scatter(
+            x=pairs[single],
+            y=pairs[four],
+            mode="markers",
+            marker={
+                "color": ACCENT_COLOUR,
+                "size": RATIO_MARKER_SIZE,
+                "opacity": RATIO_MARKER_OPACITY,
+            },
+            showlegend=False,
+        ),
+    )
+    figure.add_hline(
+        y=1.0, line_width=1, line_color=NEUTRAL_COLOUR, opacity=RATIO_RULE_OPACITY
     )
     figure.add_vline(
-        x=MATERIAL_SPREAD_THRESHOLD,
-        line_dash="dot",
-        line_color=NEUTRAL_COLOUR,
-        annotation_text=f"{MATERIAL_SPREAD_THRESHOLD:.2f} ratio points",
-        annotation_position="top right",
-        annotation_font_size=PROJECTED_ANNOTATION_FONT_SIZE,
+        x=1.0, line_width=1, line_color=NEUTRAL_COLOUR, opacity=RATIO_RULE_OPACITY
     )
-    figure.update_layout(
-        yaxis_title="Share of Gemeinden at or below",
-        showlegend=False,
-        font_size=PROJECTED_BODY_FONT_SIZE,
-    )
+    figure.update_layout(font_size=PROJECTED_BODY_FONT_SIZE)
     figure.update_xaxes(
-        range=[0, 0.3],
+        title_text="Angemessene KdU ÷ Wohngeld-based Proxy, single adult",
+        range=list(limits),
         tickfont_size=PROJECTED_BODY_FONT_SIZE,
         title_font_size=PROJECTED_AXIS_TITLE_FONT_SIZE,
     )
     figure.update_yaxes(
+        title_text="Angemessene KdU ÷ Wohngeld-based Proxy, four-person household",
+        range=list(limits),
         tickfont_size=PROJECTED_BODY_FONT_SIZE,
         title_font_size=PROJECTED_AXIS_TITLE_FONT_SIZE,
     )
     return figure
+
+
+def _shared_ratio_range(single: pd.Series, four: pd.Series) -> tuple[float, float]:
+    """Return one range covering both series, padded at each end.
+
+    The two axes carry the same measure, so a point off the identity line is
+    read as a departure only where a step of one ratio point is the same
+    distance on both. That needs one range, not two.
+    """
+    lowest = float(min(single.min(), four.min())) - RATIO_AXIS_PADDING
+    highest = float(max(single.max(), four.max())) + RATIO_AXIS_PADDING
+    return (lowest, highest)
 
 
 def _one_person_differences(frame: pd.DataFrame) -> pd.DataFrame:
@@ -732,28 +850,6 @@ def _mark_deciles(figure: go.Figure, differences: pd.Series) -> None:
             text=f"p{round(decile * 100)}<br>{value:+.0f} €",
             side=side,
         )
-
-
-def _annotate_benchmark(figure: go.Figure, point_mass: BenchmarkPointMass) -> None:
-    """Name the reference line and count the Gemeinden that sit on it."""
-    _add_label(
-        figure,
-        x=0.0,
-        y=BENCHMARK_LABEL_HEIGHT,
-        text="Angemessenheitsgrenze ohne schlüssiges Konzept",
-        side="right",
-    )
-    gemeinde_word = "Gemeinde" if point_mass.count == 1 else "Gemeinden"
-    _add_label(
-        figure,
-        x=0.0,
-        y=POINT_MASS_LABEL_HEIGHT,
-        text=(
-            f"{point_mass.count:,} {gemeinde_word} "
-            f"({point_mass.share:.1%}) exactly on that Grenze"
-        ),
-        side="right",
-    )
 
 
 def _add_label(figure: go.Figure, x: float, y: float, text: str, side: str) -> None:

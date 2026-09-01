@@ -7,6 +7,7 @@ import pytest
 from kdu.kdu_vs_wohngeld.mietenstufe_dispersion import (
     degrees_of_freedom_adjusted_share,
     dispersion_within_mietenstufe,
+    plot_mietenstufe_dispersion,
     variance_share_between_groups,
     variance_shares,
 )
@@ -168,6 +169,7 @@ def _four_gemeinden() -> pd.DataFrame:
             "ags": ["01", "02", "03", "04"],
             "household_size": [1, 1, 1, 1],
             "kdu_cap": [400.0, 420.0, 500.0, 520.0],
+            "wohngeld_fallback_cap": [430.0, 430.0, 510.0, 510.0],
             "mietenstufe": [1, 1, 2, 2],
             "state_code": ["01", "01", "01", "01"],
             "district_ags": ["011", "011", "012", "012"],
@@ -182,8 +184,37 @@ def _one_mietenstufe(caps: list[float]) -> pd.DataFrame:
             "ags": [f"{index:08d}" for index in range(len(caps))],
             "household_size": [1] * len(caps),
             "kdu_cap": caps,
+            "wohngeld_fallback_cap": [500.0] * len(caps),
             "mietenstufe": [1] * len(caps),
             "state_code": ["01"] * len(caps),
             "district_ags": ["01001"] * len(caps),
         },
     )
+
+
+def test_plot_mietenstufe_dispersion_names_the_classification_on_the_axis() -> None:
+    """The horizontal axis names the statutory class each box stands for."""
+    figure = plot_mietenstufe_dispersion(_four_gemeinden())
+    assert figure.layout.xaxis.title.text == "Mietstufe"
+
+
+def test_plot_mietenstufe_dispersion_names_the_estimand_and_unit_on_the_axis() -> None:
+    """The vertical axis states what is drawn and in which unit."""
+    figure = plot_mietenstufe_dispersion(_four_gemeinden())
+    assert figure.layout.yaxis.title.text == "KdU cap, Euro per month"
+
+
+def test_plot_mietenstufe_dispersion_marks_the_grenze_in_every_box() -> None:
+    """Each class carries the one Grenze ohne schlüssiges Konzept it is measured by."""
+    figure = plot_mietenstufe_dispersion(_four_gemeinden())
+    markers = [trace for trace in figure.data if trace.type == "scatter"]
+    assert [tuple(trace.y) for trace in markers] == [(430.0, 510.0)]
+
+
+def test_plot_mietenstufe_dispersion_rejects_two_grenzen_in_one_mietenstufe() -> None:
+    """The Grenze is one value per class, so two of them means the frame is wrong."""
+    frame = _four_gemeinden().assign(
+        wohngeld_fallback_cap=[430.0, 440.0, 510.0, 510.0],
+    )
+    with pytest.raises(ValueError, match="Mietenstufe 1"):
+        plot_mietenstufe_dispersion(frame)

@@ -1,12 +1,14 @@
 # But in simulations it seems to be important.
 
-<img src="/eligibility/entitlement_profile.png" style="max-height: 320px; margin: 0.2rem auto;" />
+<img src="/eligibility/entitlement_profile.png" style="max-height: 340px; margin: 0.2rem auto;" />
 
 - Note that this has implications for other Transfers too (Vorrangprüfung WoGG, KiZ)
 
 <!--
-Never conflate the two ratios: 1.71 is Bad Homburg v.d.Höhe's own, 1.84 is the median of
-per-Gemeinde ratios for the single adult aged 35 over 9,397 Gemeinden.
+227 € of rent left unrecognised at the left edge becomes 388 € of gross income at the
+bottom edge. The figure states no ratio, deliberately: 1.71 is Bad Homburg v.d.Höhe's own
+and 1.84 is the median of per-Gemeinde ratios over 9,397 Gemeinden for the single adult
+aged 35, and the two must never be quoted as the same number.
 
 The mechanism, if asked: the exit point is where counted income equals Bedarf, and counted
 income rises more slowly than gross income, because Sozialversicherungsbeiträge and income

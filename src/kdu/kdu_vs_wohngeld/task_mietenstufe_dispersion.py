@@ -37,7 +37,7 @@ def task_mietenstufe_dispersion(
     shares = variance_shares(frame)
     dispersion = dispersion_within_mietenstufe(frame)
 
-    figure = plot_mietenstufe_dispersion(frame, shares)
+    figure = plot_mietenstufe_dispersion(frame)
 
     figure.write_html(figure_file)
     write_presentation_png(figure, figure_png_file)

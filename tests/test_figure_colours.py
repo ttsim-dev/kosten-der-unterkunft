@@ -14,7 +14,11 @@ import pytest
 
 from kdu.eligibility import microsimulation
 from kdu.kdu_vs_wohngeld import cap_comparison, mietenstufe_dispersion
-from kdu.market_rent_comparison import market_rent_correlation, share_of_stock_above_cap
+from kdu.market_rent_comparison import (
+    cap_over_bestandsmiete,
+    market_rent_correlation,
+    share_of_stock_above_cap,
+)
 
 TEXT_CONTRAST_MINIMUM = 4.5
 GRAPHIC_CONTRAST_MINIMUM = 3.0
@@ -30,6 +34,7 @@ FIGURE_MODULES = (
     mietenstufe_dispersion,
     market_rent_correlation,
     share_of_stock_above_cap,
+    cap_over_bestandsmiete,
     microsimulation,
 )
 
@@ -48,12 +53,15 @@ GRAPHIC_COLOURS = (
     (market_rent_correlation, "LOCAL_CAP_COLOUR"),
     (share_of_stock_above_cap, "FALLBACK_COLOUR"),
     (share_of_stock_above_cap, "LOCAL_CAP_COLOUR"),
+    (cap_over_bestandsmiete, "LOCAL_CAP_COLOUR"),
+    (cap_over_bestandsmiete, "REFERENCE_LINE_COLOUR"),
     (microsimulation, "ANNOTATION_LINE_COLOUR"),
 )
 
 GRIDLINE_COLOURS = (
     (market_rent_correlation, "GRID_COLOUR"),
     (share_of_stock_above_cap, "GRID_COLOUR"),
+    (cap_over_bestandsmiete, "GRID_COLOUR"),
 )
 
 ANNOTATION_BACKGROUNDS = (

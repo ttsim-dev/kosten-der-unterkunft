@@ -11,9 +11,12 @@ from kdu.kdu_vs_wohngeld.cap_comparison import (
     attach_weights,
     bedarfsgemeinschaft_weights,
     build_cap_comparison,
+    cap_ratio_pairs_across_household_sizes,
     cap_ratio_spread_across_household_sizes,
     count_gemeinden_at_benchmark,
     plot_cap_difference_distribution,
+    plot_cap_ratio_by_household_size,
+    share_with_sign_flip,
     summarise_cap_difference_eur,
 )
 from kdu.weighting import weighted_mean
@@ -369,15 +372,15 @@ def test_plot_cap_difference_distribution_draws_household_size_one_euro_differen
     assert sorted(figure.data[0].x) == pytest.approx([-100.0, 100.0])
 
 
-def test_plot_cap_difference_distribution_reads_its_count_from_the_data(
+def test_plot_cap_difference_distribution_names_the_counted_unit_on_the_axis(
     caps: pd.DataFrame,
     fallback: pd.DataFrame,
     gemeinden: pd.DataFrame,
 ) -> None:
-    """Two Gemeinden compared at household size one make the axis say `n = 2`."""
+    """The vertical axis states what is counted and under which weighting."""
     frame = build_cap_comparison(caps, fallback, gemeinden)
     figure = plot_cap_difference_distribution(frame)
-    assert "n = 2" in figure.layout.yaxis.title.text
+    assert figure.layout.yaxis.title.text == "# Gemeinden (unweighted)"
 
 
 def _difference_frame(differences: list[float]) -> pd.DataFrame:
@@ -467,19 +470,16 @@ def test_count_gemeinden_at_benchmark_ignores_other_household_sizes() -> None:
     assert count_gemeinden_at_benchmark(frame).count == 0
 
 
-def test_plot_cap_difference_distribution_annotates_the_point_mass(
+def test_plot_cap_difference_distribution_labels_only_the_three_deciles(
     caps: pd.DataFrame,
     fallback: pd.DataFrame,
     gemeinden: pd.DataFrame,
 ) -> None:
-    """Gemeinden exactly on the Grenze ohne schlüssiges Konzept are named."""
-    at_benchmark = caps.assign(
-        kdu_cap=[400.0, 600.0, 400.0, 480.0],
-    )
+    """The reference line at zero carries no label, so only p10, p50 and p90 do."""
+    at_benchmark = caps.assign(kdu_cap=[400.0, 600.0, 400.0, 480.0])
     frame = build_cap_comparison(at_benchmark, fallback, gemeinden)
     figure = plot_cap_difference_distribution(frame)
-    texts = [annotation.text for annotation in figure.layout.annotations]
-    assert any("1 Gemeinde" in text for text in texts)
+    assert len(figure.layout.annotations) == 3
 
 
 def test_plot_cap_difference_distribution_names_the_estimand_on_the_axis(
@@ -491,7 +491,7 @@ def test_plot_cap_difference_distribution_names_the_estimand_on_the_axis(
     frame = build_cap_comparison(caps, fallback, gemeinden)
     figure = plot_cap_difference_distribution(frame)
     assert figure.layout.xaxis.title.text == (
-        "Local one-person KdU cap minus Grenze ohne schlüssiges Konzept, EUR per month"
+        "Angemessene KdU minus Wohngeld-based Proxy, Euro per month"
     )
 
 
@@ -573,3 +573,123 @@ def test_extreme_allocation_conserves_the_published_stock_of_every_covered_kreis
         "bedarfsgemeinschaften",
     ].sum()
     assert weighted[scheme.value].sum() == pytest.approx(expected)
+
+
+def _ratio_frame(ratios: dict[str, dict[int, float]]) -> pd.DataFrame:
+    """A comparison frame carrying `cap_ratio` per Gemeinde and household size."""
+    rows = [
+        {"ags": ags, "household_size": size, "cap_ratio": ratio}
+        for ags, by_size in ratios.items()
+        for size, ratio in by_size.items()
+    ]
+    return pd.DataFrame(rows)
+
+
+def test_cap_ratio_pairs_carry_the_ratio_at_both_household_sizes() -> None:
+    """A Gemeinde observed at sizes one and four contributes both of its ratios."""
+    pairs = cap_ratio_pairs_across_household_sizes(
+        _ratio_frame({"01001000": {1: 0.95, 2: 1.02, 4: 1.08}}),
+    )
+    assert pairs.loc[
+        0, ["cap_ratio_single_adult", "cap_ratio_four_person"]
+    ].to_list() == [
+        pytest.approx(0.95),
+        pytest.approx(1.08),
+    ]
+
+
+def test_cap_ratio_pairs_omit_a_gemeinde_without_a_four_person_ratio() -> None:
+    """A point needs both coordinates, so a Gemeinde missing one drops out."""
+    pairs = cap_ratio_pairs_across_household_sizes(
+        _ratio_frame({"01001000": {1: 0.95, 2: 1.02}}),
+    )
+    assert pairs.empty
+
+
+def test_share_with_sign_flip_counts_the_gemeinden_that_change_side() -> None:
+    """One of four Gemeinden above the Grenze at one size and below at the other."""
+    pairs = cap_ratio_pairs_across_household_sizes(
+        _ratio_frame(
+            {
+                "01001000": {1: 0.95, 4: 1.08},
+                "01002000": {1: 0.95, 4: 0.90},
+                "01003000": {1: 1.05, 4: 1.10},
+                "01004000": {1: 1.05, 4: 1.20},
+            },
+        ),
+    )
+    assert share_with_sign_flip(pairs) == pytest.approx(0.25)
+
+
+def test_share_with_sign_flip_leaves_a_gemeinde_on_the_grenze_unflipped() -> None:
+    """A cap equal to the Grenze at both sizes departs to neither side."""
+    pairs = cap_ratio_pairs_across_household_sizes(
+        _ratio_frame({"01001000": {1: 1.0, 4: 1.0}}),
+    )
+    assert share_with_sign_flip(pairs) == pytest.approx(0.0)
+
+
+def _ratio_scatter() -> go.Figure:
+    """The scatter drawn from four Gemeinden spread either side of the Grenze."""
+    return plot_cap_ratio_by_household_size(
+        cap_ratio_pairs_across_household_sizes(
+            _ratio_frame(
+                {
+                    "01001000": {1: 0.95, 4: 1.08},
+                    "01002000": {1: 0.95, 4: 0.90},
+                    "01003000": {1: 1.05, 4: 1.10},
+                    "01004000": {1: 1.15, 4: 1.20},
+                },
+            ),
+        ),
+    )
+
+
+def test_plot_cap_ratio_by_household_size_names_the_horizontal_estimand() -> None:
+    """The horizontal axis states the measure and the household size it is read at."""
+    assert _ratio_scatter().layout.xaxis.title.text == (
+        "Angemessene KdU ÷ Wohngeld-based Proxy, single adult"
+    )
+
+
+def test_plot_cap_ratio_by_household_size_names_the_vertical_estimand() -> None:
+    """The vertical axis states the same measure at the four-person household."""
+    assert _ratio_scatter().layout.yaxis.title.text == (
+        "Angemessene KdU ÷ Wohngeld-based Proxy, four-person household"
+    )
+
+
+def test_plot_cap_ratio_by_household_size_draws_an_identity_line() -> None:
+    """A Gemeinde whose ratio does not move with size sits on the drawn diagonal."""
+    lines = [trace for trace in _ratio_scatter().data if trace.mode == "lines"]
+    assert [tuple(line.x) == tuple(line.y) for line in lines] == [True]
+
+
+def test_plot_cap_ratio_by_household_size_gives_both_axes_the_same_range() -> None:
+    """Equal ranges make the diagonal the 45-degree line it is read as."""
+    figure = _ratio_scatter()
+    assert figure.layout.xaxis.range == figure.layout.yaxis.range
+
+
+def test_plot_cap_ratio_by_household_size_leaves_the_scale_unanchored() -> None:
+    """Anchoring the scales widens the drawn range beyond the one set here."""
+    assert _ratio_scatter().layout.yaxis.scaleanchor is None
+
+
+def test_plot_cap_ratio_by_household_size_rules_both_axes_at_the_grenze() -> None:
+    """A crosshair at one separates the four quadrants the sign flip is read from."""
+    shapes = _ratio_scatter().layout.shapes
+    assert sorted(shape.x0 == 1.0 for shape in shapes) == [False, True]
+
+
+@requires_built_data
+def test_cap_ratio_pairs_cover_every_gemeinde_observed_at_both_sizes() -> None:
+    """The collected caps place 9,368 Gemeinden at household sizes one and four."""
+    assert len(cap_ratio_pairs_across_household_sizes(_weighted_built_frame())) == 9368
+
+
+@requires_built_data
+def test_share_with_sign_flip_is_an_eighth_of_the_collected_gemeinden() -> None:
+    """In 12.1 % of Gemeinden the cap sits above the Grenze at one of the two sizes."""
+    pairs = cap_ratio_pairs_across_household_sizes(_weighted_built_frame())
+    assert share_with_sign_flip(pairs) == pytest.approx(0.121, abs=5e-4)

@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import pytest
 
 from kdu.eligibility.microsimulation import (
@@ -175,7 +176,7 @@ def profile() -> EntitlementProfile:
             )
             for scenario, claim_at_zero, exit_ in (
                 (SCENARIO_LOCAL_CAP, 1100.0, 2071.0),
-                (SCENARIO_FALLBACK, 1330.0, 2459.0),
+                (SCENARIO_FALLBACK, 1100.0 + 226.82, 2459.0),
             )
         ],
         ignore_index=True,
@@ -212,125 +213,230 @@ def test_entitlement_profile_amplification_is_the_local_ratio(
     assert profile.amplification == pytest.approx(388.0 / 226.82)
 
 
+GEMEINDE_NAME = "Bad Homburg v.d.Höhe"
+
+
+@pytest.fixture
+def figure(profile: EntitlementProfile) -> go.Figure:
+    """The entitlement profile of Bad Homburg v.d.Höhe as it is drawn."""
+    return plot_entitlement_profile(profile, gemeinde_name=GEMEINDE_NAME)
+
+
+def _solid_shapes(figure: go.Figure) -> list[go.layout.Shape]:
+    """Every shape drawn as a solid rule: a measurement line or an end cap."""
+    return [shape for shape in figure.layout.shapes if shape.line.dash == "solid"]
+
+
+def _dotted_shapes(figure: go.Figure) -> list[go.layout.Shape]:
+    """Every shape drawn as a dotted rule: a leader running to a measurement line."""
+    return [shape for shape in figure.layout.shapes if shape.line.dash == "dot"]
+
+
+def _horizontal_measurement_line(figure: go.Figure) -> go.layout.Shape:
+    """The solid rule spanning the two zero crossings."""
+    spans = [
+        shape
+        for shape in _solid_shapes(figure)
+        if shape.y0 == shape.y1 and shape.x0 != shape.x1
+    ]
+    return max(spans, key=lambda shape: abs(shape.x1 - shape.x0))
+
+
+def _vertical_measurement_line(figure: go.Figure) -> go.layout.Shape:
+    """The solid rule spanning the two claims at the lowest gross income."""
+    spans = [
+        shape
+        for shape in _solid_shapes(figure)
+        if shape.x0 == shape.x1 and shape.y0 != shape.y1
+    ]
+    return max(spans, key=lambda shape: abs(shape.y1 - shape.y0))
+
+
 def test_plot_entitlement_profile_draws_one_line_per_scenario(
-    profile: EntitlementProfile,
+    figure: go.Figure,
 ) -> None:
     """Both ceilings appear as their own claim-over-income line."""
-    figure = plot_entitlement_profile(profile, gemeinde_name="Bad Homburg v.d.Höhe")
     lines = [trace for trace in figure.data if trace.mode == "lines"]
     assert len(lines) == 2
 
 
-def test_plot_entitlement_profile_carries_no_title(
-    profile: EntitlementProfile,
-) -> None:
+def test_plot_entitlement_profile_carries_no_title(figure: go.Figure) -> None:
     """The slide supplies the heading, so the figure carries none."""
-    figure = plot_entitlement_profile(profile, gemeinde_name="Bad Homburg v.d.Höhe")
     assert figure.layout.title.text is None
 
 
-def test_plot_entitlement_profile_labels_the_local_cap_on_the_plot(
+def test_plot_entitlement_profile_names_both_curves_in_the_legend(
+    figure: go.Figure,
+) -> None:
+    """The legend names the local cap and the Wohngeld-based Proxy."""
+    named = [trace.name for trace in figure.data if trace.mode == "lines"]
+    assert named == ["Angemessene KdU (local cap)", "Wohngeld-based Proxy"]
+
+
+def test_plot_entitlement_profile_lays_the_legend_out_horizontally(
+    figure: go.Figure,
+) -> None:
+    """The two names sit side by side rather than stacked in a box."""
+    assert figure.layout.legend.orientation == "h"
+
+
+def test_plot_entitlement_profile_places_the_legend_below_the_plot(
+    figure: go.Figure,
+) -> None:
+    """The legend sits under the income axis, clear of both curves."""
+    assert figure.layout.legend.y < 0.0
+
+
+def test_plot_entitlement_profile_names_the_gemeinde_and_the_household(
+    figure: go.Figure,
+) -> None:
+    """One corner annotation says whose claim is drawn and for whom."""
+    texts = [annotation.text for annotation in figure.layout.annotations]
+    assert f"{GEMEINDE_NAME}, single adult" in texts
+
+
+def test_plot_entitlement_profile_writes_only_the_two_measurements_and_the_corner(
+    figure: go.Figure,
+) -> None:
+    """No prose remains: two euro labels and the corner annotation, nothing else."""
+    texts = {annotation.text for annotation in figure.layout.annotations}
+    assert texts == {"388 €", "227 €", f"{GEMEINDE_NAME}, single adult"}
+
+
+def test_plot_entitlement_profile_measures_the_shift_of_the_exit(
+    profile: EntitlementProfile,
+    figure: go.Figure,
+) -> None:
+    """The horizontal dimension line spans the two zero crossings."""
+    line = _horizontal_measurement_line(figure)
+    assert line.x1 - line.x0 == pytest.approx(profile.exit_threshold_shift)
+
+
+def test_plot_entitlement_profile_measures_the_rent_not_recognised(
+    profile: EntitlementProfile,
+    figure: go.Figure,
+) -> None:
+    """The vertical dimension line spans the two claims at the lowest income."""
+    line = _vertical_measurement_line(figure)
+    assert line.y1 - line.y0 == pytest.approx(profile.rent_not_recognised)
+
+
+def test_entitlement_profile_curves_stand_one_rent_difference_apart(
     profile: EntitlementProfile,
 ) -> None:
-    """The local ceiling is written next to its own line rather than in a legend."""
-    figure = plot_entitlement_profile(profile, gemeinde_name="Bad Homburg v.d.Höhe")
-    texts = [annotation.text for annotation in figure.layout.annotations]
-    assert any(
-        "Local Kosten der Unterkunft cap" in text and "539.00 EUR" in text
-        for text in texts
+    """At the lowest gross income the recognised rent enters the claim one for one."""
+    curves = profile.curves
+    at_lowest = curves.loc[curves["gross_income"] == curves["gross_income"].min()]
+    claims = at_lowest.set_index("scenario")["anspruch"]
+    assert claims[SCENARIO_FALLBACK] - claims[SCENARIO_LOCAL_CAP] == pytest.approx(
+        profile.rent_not_recognised,
     )
 
 
-def test_plot_entitlement_profile_writes_both_ceilings_to_the_cent(
-    profile: EntitlementProfile,
+def test_plot_entitlement_profile_offsets_the_shift_below_the_claim_axis(
+    figure: go.Figure,
 ) -> None:
-    """Both ceiling labels carry cents, because one of the two ceilings has them."""
-    figure = plot_entitlement_profile(profile, gemeinde_name="Bad Homburg v.d.Höhe")
-    texts = [annotation.text for annotation in figure.layout.annotations]
-    labelled = [text for text in texts if "recognises" in text]
-    assert sorted(labelled) == sorted(
-        [
-            "Local Kosten der Unterkunft cap<br>recognises 539.00 EUR of rent",
-            "Grenze ohne schlüssiges Konzept<br>recognises 765.82 EUR of rent",
-        ],
+    """The horizontal dimension line clears the local cap's flat run at zero."""
+    assert _horizontal_measurement_line(figure).y0 < 0.0
+
+
+def test_plot_entitlement_profile_offsets_the_rent_gap_right_of_the_income_axis(
+    figure: go.Figure,
+) -> None:
+    """The vertical dimension line stands clear of the claim axis itself."""
+    assert _vertical_measurement_line(figure).x0 > 0.0
+
+
+def test_plot_entitlement_profile_caps_the_horizontal_dimension_line(
+    profile: EntitlementProfile,
+    figure: go.Figure,
+) -> None:
+    """Both ends of the measured span carry a perpendicular end cap."""
+    line = _horizontal_measurement_line(figure)
+    capped = {
+        shape.x0
+        for shape in _solid_shapes(figure)
+        if shape.x0 == shape.x1 and shape.y0 < line.y0 < shape.y1
+    }
+    assert capped == {
+        profile.exit_threshold_local_cap,
+        profile.exit_threshold_fallback,
+    }
+
+
+def test_plot_entitlement_profile_caps_the_vertical_dimension_line(
+    figure: go.Figure,
+) -> None:
+    """Both ends of the measured claim gap carry a perpendicular end cap."""
+    line = _vertical_measurement_line(figure)
+    capped = {
+        shape.y0
+        for shape in _solid_shapes(figure)
+        if shape.y0 == shape.y1 and shape.x0 < line.x0 < shape.x1
+    }
+    assert capped == {line.y0, line.y1}
+
+
+def test_plot_entitlement_profile_leads_from_both_zero_crossings(
+    profile: EntitlementProfile,
+    figure: go.Figure,
+) -> None:
+    """A dotted leader runs from each zero crossing out to the measurement line."""
+    led = {
+        shape.x0
+        for shape in _dotted_shapes(figure)
+        if shape.x0 == shape.x1 and shape.y0 == 0.0
+    }
+    assert led == {
+        profile.exit_threshold_local_cap,
+        profile.exit_threshold_fallback,
+    }
+
+
+def test_plot_entitlement_profile_leads_from_both_claims_at_the_lowest_income(
+    figure: go.Figure,
+) -> None:
+    """A dotted leader runs from each intercept out to the measurement line."""
+    line = _vertical_measurement_line(figure)
+    led = {
+        shape.y0
+        for shape in _dotted_shapes(figure)
+        if shape.y0 == shape.y1 and shape.x1 == line.x0
+    }
+    assert led == {line.y0, line.y1}
+
+
+def test_plot_entitlement_profile_names_the_income_axis(figure: go.Figure) -> None:
+    """The horizontal axis is gross income in euro per month."""
+    assert figure.layout.xaxis.title.text == "Gross income, Euro per month"
+
+
+def test_plot_entitlement_profile_names_the_claim_axis(figure: go.Figure) -> None:
+    """The vertical axis is the SGB claim in euro per month."""
+    assert figure.layout.yaxis.title.text == "SGB claim, Euro per month"
+
+
+def test_plot_entitlement_profile_ticks_the_claim_axis_from_zero(
+    figure: go.Figure,
+) -> None:
+    """No tick falls below zero, because a negative claim means nothing."""
+    assert tuple(figure.layout.yaxis.tickvals) == (
+        0.0,
+        200.0,
+        400.0,
+        600.0,
+        800.0,
+        1000.0,
+        1200.0,
+        1400.0,
     )
 
 
-def test_plot_entitlement_profile_measures_the_gap_below_the_claim_axis(
-    profile: EntitlementProfile,
+def test_plot_entitlement_profile_extends_the_claim_axis_below_the_dimension_line(
+    figure: go.Figure,
 ) -> None:
-    """The measuring bracket sits below zero, where no claim line can reach it."""
-    figure = plot_entitlement_profile(profile, gemeinde_name="Bad Homburg v.d.Höhe")
-    brackets = [
-        trace
-        for trace in figure.data
-        if trace.mode == "lines+markers" and tuple(trace.x) == (2071.0, 2459.0)
-    ]
-    assert brackets[0].y[0] < 0.0
-
-
-def test_plot_entitlement_profile_writes_the_gap_below_its_bracket(
-    profile: EntitlementProfile,
-) -> None:
-    """The sentence explaining the gap sits below the bracket, clear of both lines."""
-    figure = plot_entitlement_profile(profile, gemeinde_name="Bad Homburg v.d.Höhe")
-    written = [
-        annotation
-        for annotation in figure.layout.annotations
-        if "388 EUR" in annotation.text
-    ]
-    assert written[0].y < 0.0
-
-
-def test_plot_entitlement_profile_labels_the_grenze_on_the_plot(
-    profile: EntitlementProfile,
-) -> None:
-    """The Grenze ohne schlüssiges Konzept is written next to its own line."""
-    figure = plot_entitlement_profile(profile, gemeinde_name="Bad Homburg v.d.Höhe")
-    texts = [annotation.text for annotation in figure.layout.annotations]
-    assert any(
-        "Grenze ohne schlüssiges Konzept" in text and "765.82 EUR" in text
-        for text in texts
-    )
-
-
-def test_plot_entitlement_profile_shows_no_legend(
-    profile: EntitlementProfile,
-) -> None:
-    """Direct labels replace the legend box."""
-    figure = plot_entitlement_profile(profile, gemeinde_name="Bad Homburg v.d.Höhe")
-    assert figure.layout.showlegend is False
-
-
-def test_plot_entitlement_profile_marks_both_zero_crossings(
-    profile: EntitlementProfile,
-) -> None:
-    """Both exit thresholds are marked on the income axis."""
-    figure = plot_entitlement_profile(profile, gemeinde_name="Bad Homburg v.d.Höhe")
-    marked = [
-        tuple(trace.x)
-        for trace in figure.data
-        if trace.mode is not None and "markers" in trace.mode and trace.y == (0.0, 0.0)
-    ]
-    assert marked == [(2071.0, 2459.0)]
-
-
-def test_plot_entitlement_profile_annotates_the_distance_between_the_crossings(
-    profile: EntitlementProfile,
-) -> None:
-    """The horizontal gap is written out as 388 EUR of gross income."""
-    figure = plot_entitlement_profile(profile, gemeinde_name="Bad Homburg v.d.Höhe")
-    texts = [annotation.text for annotation in figure.layout.annotations]
-    assert any("388 EUR" in text for text in texts)
-
-
-def test_plot_entitlement_profile_names_the_gemeinde(
-    profile: EntitlementProfile,
-) -> None:
-    """The figure carries no title, so the Gemeinde is named in an annotation."""
-    figure = plot_entitlement_profile(profile, gemeinde_name="Bad Homburg v.d.Höhe")
-    texts = [annotation.text for annotation in figure.layout.annotations]
-    assert any("Bad Homburg v.d.Höhe" in text for text in texts)
+    """The claim axis reaches under the measured span and its label."""
+    assert figure.layout.yaxis.range[0] < _horizontal_measurement_line(figure).y0
 
 
 def test_plot_exit_threshold_distribution_carries_no_title() -> None:

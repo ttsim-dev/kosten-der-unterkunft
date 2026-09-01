@@ -6,7 +6,9 @@ classification is coarse by construction. A tax-transfer model without the
 local caps reaches for that classification as its regional housing parameter.
 This module states what the classification does and does not carry:
 
-- the dispersion of the local cap that survives inside a single Mietenstufe;
+- the dispersion of the local cap that survives inside a single Mietenstufe,
+  against the one Angemessenheitsgrenze ohne schlüssiges Konzept that class
+  carries;
 - the share of the variance in the log local cap accounted for by the
   Mietenstufe, by the Bundesland, by the two together, and by the Kreis.
 
@@ -58,14 +60,19 @@ ACCENT_COLOUR = "#c25e12"
 BASE_FONT_SIZE = 20
 AXIS_TITLE_FONT_SIZE = 24
 
-HOUSEHOLD_SIZE_WORDS: dict[int, str] = {
-    1: "one",
-    2: "two",
-    3: "three",
-    4: "four",
-    5: "five",
-    6: "six",
-}
+# The overlaid Grenze marker, large enough to read against a box behind it.
+FALLBACK_MARKER_SIZE = 14
+
+# The label the overlaid Grenze ohne schlüssiges Konzept carries in the legend.
+# It stays German because it is the statutory construction it names.
+FALLBACK_LEGEND_LABEL = "Angemessenheitsgrenze ohne schlüssiges Konzept"
+
+# The Grenze is a single euro amount per Mietenstufe at a given household size,
+# so a class holding two of them means the frame was built at more than one
+# size or from more than one Rechtsstand. Coincidence is read to half a cent,
+# the resolution the Wohngeld table is published at, because the Grenze is a
+# floating-point product and carries a residue far below that.
+FALLBACK_IDENTITY_TOLERANCE_EUR = 0.005
 
 
 def dispersion_within_mietenstufe(
@@ -208,32 +215,42 @@ def variance_share_between_groups(
 
 def plot_mietenstufe_dispersion(
     frame: pd.DataFrame,
-    shares: pd.DataFrame,
     household_size: int = REFERENCE_HOUSEHOLD_SIZE,
 ) -> go.Figure:
     """Draw the local caps that share one Mietenstufe, one box per Mietenstufe.
 
+    Each box carries the one Angemessenheitsgrenze ohne schlüssiges Konzept its
+    class is measured against, drawn as a single marker. The Grenze takes
+    exactly one value per Mietenstufe at a given household size, so the marker
+    is that value rather than a summary of several.
+
     Args:
         frame: The output of {func}`kdu.kdu_vs_wohngeld.cap_comparison.
             build_cap_comparison`.
-        shares: The output of {func}`variance_shares`. Its `n_gemeinden`
-            supplies the sample count the horizontal axis title reports.
-        household_size: The size at which the caps are read.
+        household_size: The size at which the caps and the Grenze are read.
 
     Returns:
         A one-panel figure: the distribution of the local cap inside each
-        statutory class, with the number of Gemeinden on each tick label. The
-        axis titles carry the estimand, the unit, the weighting and the total
-        number of Gemeinden.
+        statutory class, with the number of Gemeinden on each tick label and
+        the Grenze of that class marked in the box.
+
+    Raises:
+        ValueError: If a Mietenstufe carries more than one Grenze.
 
     """
+    _fail_if_fallback_absent(frame)
     observed = _observations_at(frame, household_size)
     figure = go.Figure()
+    tick_labels: list[str] = []
+    fallbacks: list[float] = []
     for mietenstufe, part in observed.groupby("mietenstufe", observed=True):
+        label = _tick_label(cast("int", mietenstufe), len(part))
+        tick_labels.append(label)
+        fallbacks.append(_single_fallback(part, cast("int", mietenstufe)))
         figure.add_trace(
             go.Box(
                 y=part["kdu_cap"].to_numpy(dtype="float64"),
-                name=_tick_label(cast("int", mietenstufe), len(part)),
+                name=label,
                 fillcolor=NEUTRAL_COLOUR,
                 line_color=ACCENT_COLOUR,
                 opacity=0.6,
@@ -241,30 +258,66 @@ def plot_mietenstufe_dispersion(
                 showlegend=False,
             ),
         )
-    figure.update_layout(font_size=BASE_FONT_SIZE)
+    figure.add_trace(
+        go.Scatter(
+            x=tick_labels,
+            y=fallbacks,
+            mode="markers",
+            name=FALLBACK_LEGEND_LABEL,
+            marker={
+                "color": NEUTRAL_COLOUR,
+                "symbol": "diamond",
+                "size": FALLBACK_MARKER_SIZE,
+            },
+        ),
+    )
+    figure.update_layout(
+        font_size=BASE_FONT_SIZE,
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1.0,
+            "xanchor": "left",
+            "x": 0.0,
+            "font_size": BASE_FONT_SIZE,
+        },
+    )
     figure.update_xaxes(
-        title_text=_horizontal_axis_title(shares),
+        title_text="Mietstufe",
         tickfont_size=BASE_FONT_SIZE,
         title_font_size=AXIS_TITLE_FONT_SIZE,
     )
     figure.update_yaxes(
-        title_text=_vertical_axis_title(household_size),
+        title_text="KdU cap, Euro per month",
         tickfont_size=BASE_FONT_SIZE,
         title_font_size=AXIS_TITLE_FONT_SIZE,
     )
     return figure
 
 
-def _horizontal_axis_title(shares: pd.DataFrame) -> str:
-    """Name the classification, the weighting and the sample count."""
-    n_gemeinden = int(shares["n_gemeinden"].to_numpy()[0])
-    return f"Mietenstufe — one Gemeinde one weight; n = {n_gemeinden:,}"
+def _fail_if_fallback_absent(frame: pd.DataFrame) -> None:
+    """Reject a frame without the Grenze the boxes are measured against."""
+    if "wohngeld_fallback_cap" not in frame.columns:
+        msg = "frame is missing required column 'wohngeld_fallback_cap'"
+        raise ValueError(msg)
 
 
-def _vertical_axis_title(household_size: int) -> str:
-    """Name the estimand and its unit."""
-    size_word = HOUSEHOLD_SIZE_WORDS.get(household_size, str(household_size))
-    return f"Local {size_word}-person KdU cap, € per month"
+def _single_fallback(part: pd.DataFrame, mietenstufe: int) -> float:
+    """Return the one Grenze ohne schlüssiges Konzept the Mietenstufe carries."""
+    values = part["wohngeld_fallback_cap"].to_numpy(dtype="float64")
+    if not bool(
+        np.isclose(
+            values, values[0], rtol=0.0, atol=FALLBACK_IDENTITY_TOLERANCE_EUR
+        ).all(),
+    ):
+        msg = (
+            f"Mietenstufe {mietenstufe} carries "
+            f"{len(np.unique(values))} distinct Angemessenheitsgrenzen ohne "
+            f"schlüssiges Konzept; it takes exactly one value per Mietenstufe "
+            f"at a given household size"
+        )
+        raise ValueError(msg)
+    return float(values[0])
 
 
 def _tick_label(mietenstufe: int, n_gemeinden: int) -> str:

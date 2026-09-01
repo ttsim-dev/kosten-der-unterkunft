@@ -66,10 +66,10 @@ MEASURES: tuple[MeasureSpec, ...] = (
     MeasureSpec(
         key="mietenstufe",
         column="mietenstufe",
-        label="Mietenstufe",
+        label="Mietstufe",
         unit="",
         hover_format="d",
-        headline="Mietenstufe der Gemeinde",
+        headline="Mietstufe der Gemeinde",
         context=(
             "Stufe 1 bis 7 · Grundlage der Wohngeld-Höchstbeträge nach "
             "§ 12 Wohngeldgesetz"

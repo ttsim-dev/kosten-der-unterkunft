@@ -136,20 +136,53 @@ FALLBACK_COLOUR = "#5a6470"
 # ground, and the diagonal along which a euro of cap is a euro of income.
 ANNOTATION_LINE_COLOUR = "#4a4a4a"
 
-# A direct label sits this far above the line it names, as a share of the
-# highest claim drawn, so that a descending line does not run through its own
-# label. The label is backed by the plot ground for the same reason.
-LABEL_CLEARANCE_SHARE_OF_HIGHEST_CLAIM = 0.06
+# A euro label sits on the plot's own ground, so that a leader or a curve
+# passing behind it does not run through the digits.
 ANNOTATION_BACKGROUND = "rgba(255, 255, 255, 0.85)"
 
-# The bracket measuring the distance between the two zero crossings is drawn
-# below the claim axis, and the sentence reading it below the bracket. Both
-# claims are non-negative everywhere, so nothing drawn under zero can cross a
-# line, whereas the region between the crossings is where the second claim is
-# still falling and is therefore occupied.
-MEASURING_BRACKET_DEPTH_SHARE_OF_HIGHEST_CLAIM = 0.10
-CLAIM_AXIS_FLOOR_SHARE_OF_HIGHEST_CLAIM = 0.34
-CLAIM_AXIS_TICK_STEP_EUR = 200.0
+# The two curves are named below the plot rather than beside themselves, and the
+# Gemeinde and Modellhaushalt in one corner. Nothing else is written on the
+# figure: the two distances it measures are labelled by their dimension lines.
+LOCAL_CAP_LEGEND_NAME = "Angemessene KdU (local cap)"
+FALLBACK_LEGEND_NAME = "Wohngeld-based Proxy"
+LEGEND_Y_BELOW_INCOME_AXIS = -0.22
+
+# Each measured distance is drawn as an engineering dimension: dotted leaders
+# from the two measured points out to a measurement line offset clear of the
+# data, that line drawn solid with perpendicular end caps, and the euro label
+# beside it. Both offsets are shares of the drawn extent, so the geometry holds
+# whatever the level of the claim.
+#
+# The horizontal dimension is offset below zero because the local cap's claim
+# runs flat along zero past its own exit and would hide a line drawn on it. The
+# vertical one is offset to the right of zero because a line drawn on the claim
+# axis reads as part of the axis.
+DIMENSION_OFFSET_SHARE_OF_HIGHEST_CLAIM = 0.09
+DIMENSION_OFFSET_SHARE_OF_INCOME_SPAN = 0.055
+DIMENSION_END_CAP_SHARE_OF_HIGHEST_CLAIM = 0.022
+DIMENSION_END_CAP_SHARE_OF_INCOME_SPAN = 0.013
+DIMENSION_LABEL_OFFSET_PIXELS = 10
+DIMENSION_LABEL_FONT_SIZE = 22
+
+# How far the claim axis reaches under the horizontal dimension line, in end-cap
+# heights, so that the line and the label below it both stand clear of the
+# plot's edge.
+CLAIM_AXIS_FLOOR_IN_END_CAPS = 4.0
+CLAIM_AXIS_HEADROOM = 1.05
+
+# The claim axis is ticked in whole hundreds from zero. The range runs below
+# zero to make room for the horizontal dimension line, but a negative claim is
+# not a quantity and is therefore not ticked.
+CLAIM_AXIS_TICK_VALUES_EUR: tuple[float, ...] = (
+    0.0,
+    200.0,
+    400.0,
+    600.0,
+    800.0,
+    1000.0,
+    1200.0,
+    1400.0,
+)
 
 # Every column `evaluate` expects on a case frame.
 CASE_COLUMNS: tuple[str, ...] = (
@@ -830,20 +863,22 @@ def plot_entitlement_profile(
     profile: EntitlementProfile,
     gemeinde_name: str,
 ) -> go.Figure:
-    """Draw the claim falling to zero under each cap, and the gap between.
+    """Draw the claim falling to zero under each cap, and measure the two gaps.
 
-    The picture makes one sentence visible: recognising less rent pushes the
-    income at which the household stops receiving Bürgergeld down by more than
-    the rent that goes unrecognised. The two lines start one rent difference
-    apart at zero income — that vertical gap is an arithmetic identity — and
-    reach zero a longer horizontal distance apart, because the
-    Einkommensanrechnung of § 11b SGB II withdraws only part of each additional
-    euro.
+    The picture makes one sentence visible without writing it: recognising less
+    rent pushes the income at which the household stops receiving Bürgergeld
+    down by more than the rent that goes unrecognised. The two curves start one
+    rent difference apart at the lowest income drawn — that vertical gap is an
+    arithmetic identity — and reach zero a longer horizontal distance apart,
+    because the Einkommensanrechnung of § 11b SGB II withdraws only part of each
+    additional euro. Both distances are measured by a dimension line and
+    labelled with nothing but their size in euro.
 
-    The ratio annotated here is this Gemeinde's own. It is not the median ratio
-    across Gemeinden that `summarise_exit_thresholds` reports, which is computed
-    over a different population and takes a different value; the two must never
-    be presented as the same number.
+    The figure states no ratio of the two. This Gemeinde's own ratio is not the
+    median ratio across Gemeinden that `summarise_exit_thresholds` reports; the
+    two are computed over different populations and take different values, and
+    must never be presented as the same number. A reader who divides the two
+    labels arrives at this Gemeinde's ratio, which is what the figure shows.
 
     Args:
         profile: The profile from `entitlement_profile`.
@@ -855,155 +890,220 @@ def plot_entitlement_profile(
 
     """
     figure = go.Figure()
-    label_x = 0.06 * float(profile.curves["gross_income"].max())
-    highest_claim = float(profile.curves["anspruch"].max())
-    for scenario, cap, colour, name in (
-        (
-            SCENARIO_LOCAL_CAP,
-            profile.local_cap,
-            LOCAL_CAP_COLOUR,
-            "Local Kosten der Unterkunft cap",
-        ),
-        (
-            SCENARIO_FALLBACK,
-            profile.wohngeld_fallback_cap,
-            FALLBACK_COLOUR,
-            "Grenze ohne schlüssiges Konzept",
-        ),
+    curves = profile.curves
+    for scenario, colour, name in (
+        (SCENARIO_LOCAL_CAP, LOCAL_CAP_COLOUR, LOCAL_CAP_LEGEND_NAME),
+        (SCENARIO_FALLBACK, FALLBACK_COLOUR, FALLBACK_LEGEND_NAME),
     ):
-        curve = profile.curves.loc[profile.curves["scenario"] == scenario]
+        curve = curves.loc[curves["scenario"] == scenario].sort_values("gross_income")
         figure.add_trace(
             go.Scatter(
                 x=curve["gross_income"],
                 y=curve["anspruch"],
                 mode="lines",
+                name=name,
                 line={"color": colour, "width": 4},
                 hovertemplate="%{x:,.0f} EUR gross, %{y:,.0f} EUR claim<extra></extra>",
             ),
         )
-        figure.add_annotation(
-            x=label_x,
-            y=(
-                float(np.interp(label_x, curve["gross_income"], curve["anspruch"]))
-                + LABEL_CLEARANCE_SHARE_OF_HIGHEST_CLAIM * highest_claim
-            ),
-            text=(f"{name}<br>recognises {_format_euro_with_cents(cap)} EUR of rent"),
-            showarrow=False,
-            xanchor="left",
-            yanchor="bottom",
-            font={"color": colour, "size": FIGURE_ANNOTATION_FONT_SIZE},
-            bgcolor=ANNOTATION_BACKGROUND,
-        )
-    _mark_zero_crossings(figure, profile)
+    highest_claim = float(curves["anspruch"].max())
+    income_span = float(curves["gross_income"].max())
+    claim_offset = -DIMENSION_OFFSET_SHARE_OF_HIGHEST_CLAIM * highest_claim
+    income_offset = DIMENSION_OFFSET_SHARE_OF_INCOME_SPAN * income_span
+    end_cap_claim = DIMENSION_END_CAP_SHARE_OF_HIGHEST_CLAIM * highest_claim
+    end_cap_income = DIMENSION_END_CAP_SHARE_OF_INCOME_SPAN * income_span
+    _measure_the_shift_of_the_exit(
+        figure,
+        profile,
+        measurement_claim=claim_offset,
+        end_cap=end_cap_claim,
+    )
+    _measure_the_rent_not_recognised(
+        figure,
+        profile,
+        measurement_income=income_offset,
+        end_cap=end_cap_income,
+    )
     figure.add_annotation(
         x=1.0,
         y=1.0,
         xref="paper",
         yref="paper",
-        text=(f"{gemeinde_name}, {MODEL_HOUSEHOLDS[profile.household_key].label}"),
+        text=f"{gemeinde_name}, single adult",
         showarrow=False,
         xanchor="right",
         yanchor="top",
         font={"size": FIGURE_ANNOTATION_FONT_SIZE},
     )
     figure.update_layout(
-        showlegend=False,
         font={"size": FIGURE_FONT_SIZE},
-        xaxis_title="Gross income (EUR per month)",
-        yaxis_title="SGB claim (EUR per month)",
+        xaxis_title="Gross income, Euro per month",
+        yaxis_title="SGB claim, Euro per month",
         xaxis_title_font_size=FIGURE_AXIS_TITLE_FONT_SIZE,
         yaxis_title_font_size=FIGURE_AXIS_TITLE_FONT_SIZE,
         yaxis={
             "range": [
-                -CLAIM_AXIS_FLOOR_SHARE_OF_HIGHEST_CLAIM * highest_claim,
-                1.08 * highest_claim,
+                claim_offset - CLAIM_AXIS_FLOOR_IN_END_CAPS * end_cap_claim,
+                CLAIM_AXIS_HEADROOM * highest_claim,
             ],
             "tickmode": "array",
-            "tickvals": np.arange(
-                0.0,
-                highest_claim + CLAIM_AXIS_TICK_STEP_EUR,
-                CLAIM_AXIS_TICK_STEP_EUR,
-            ),
+            "tickvals": CLAIM_AXIS_TICK_VALUES_EUR,
+        },
+        legend={
+            "orientation": "h",
+            "x": 0.5,
+            "xanchor": "center",
+            "y": LEGEND_Y_BELOW_INCOME_AXIS,
+            "yanchor": "top",
+            "font": {"size": FIGURE_FONT_SIZE},
         },
         margin={"t": 60},
     )
     return figure
 
 
-def _mark_zero_crossings(figure: go.Figure, profile: EntitlementProfile) -> None:
-    """Mark both exit thresholds and write the distance between them."""
+def _measure_the_shift_of_the_exit(
+    figure: go.Figure,
+    profile: EntitlementProfile,
+    measurement_claim: float,
+    end_cap: float,
+) -> None:
+    """Dimension the gross income between the two zero crossings."""
     lower = profile.exit_threshold_local_cap
     upper = profile.exit_threshold_fallback
-    bracket_y = -MEASURING_BRACKET_DEPTH_SHARE_OF_HIGHEST_CLAIM * float(
-        profile.curves["anspruch"].max(),
-    )
     figure.add_trace(
         go.Scatter(
             x=[lower, upper],
             y=[0.0, 0.0],
             mode="markers",
-            marker={
-                "size": 14,
-                "color": [LOCAL_CAP_COLOUR, FALLBACK_COLOUR],
-                "line": {"width": 2, "color": ANNOTATION_LINE_COLOUR},
-            },
+            marker={"size": 12, "color": ANNOTATION_LINE_COLOUR},
+            showlegend=False,
             hovertemplate="Exit at %{x:,.0f} EUR gross<extra></extra>",
         ),
     )
-    figure.add_trace(
-        go.Scatter(
-            x=[lower, upper],
-            y=[bracket_y, bracket_y],
-            mode="lines+markers",
-            line={"color": ANNOTATION_LINE_COLOUR, "width": 2},
-            marker={"symbol": "line-ns", "size": 12, "line": {"width": 2}},
-            hoverinfo="skip",
-        ),
-    )
     for crossing in (lower, upper):
-        figure.add_shape(
-            type="line",
+        _add_leader(figure, x0=crossing, y0=0.0, x1=crossing, y1=measurement_claim)
+        _add_measurement_rule(
+            figure,
             x0=crossing,
+            y0=measurement_claim - end_cap,
             x1=crossing,
-            y0=0.0,
-            y1=bracket_y,
-            line={"color": ANNOTATION_LINE_COLOUR, "width": 1, "dash": "dot"},
+            y1=measurement_claim + end_cap,
         )
+    _add_measurement_rule(
+        figure,
+        x0=lower,
+        y0=measurement_claim,
+        x1=upper,
+        y1=measurement_claim,
+    )
     figure.add_annotation(
         x=0.5 * (lower + upper),
-        y=bracket_y,
-        text=(
-            f"The exit falls by {_format_euro(profile.exit_threshold_shift)} EUR "
-            f"of gross income —<br>{profile.amplification:.2f} times the "
-            f"{_format_euro_with_cents(profile.rent_not_recognised)} EUR of rent "
-            f"left "
-            f"unrecognised"
-        ),
+        y=measurement_claim,
+        text=_format_euro_label(upper - lower),
         showarrow=False,
         yanchor="top",
-        yshift=-12,
-        font={"size": FIGURE_ANNOTATION_FONT_SIZE},
+        yshift=-DIMENSION_LABEL_OFFSET_PIXELS,
+        font={"size": DIMENSION_LABEL_FONT_SIZE, "color": ANNOTATION_LINE_COLOUR},
         bgcolor=ANNOTATION_BACKGROUND,
     )
 
 
-def _format_euro(amount: float) -> str:
-    """Write a euro amount in whole euro.
+def _measure_the_rent_not_recognised(
+    figure: go.Figure,
+    profile: EntitlementProfile,
+    measurement_income: float,
+    end_cap: float,
+) -> None:
+    """Dimension the claim between the two curves at the lowest income drawn.
 
-    Used for the shift of the exit threshold, which is located by bisection to
-    one euro and so carries no cents to report.
+    That distance is the rent the local cap leaves unrecognised: at the lowest
+    income the recognised rent enters the Bedarf one for one.
     """
-    return f"{amount:,.0f}"
+    curves = profile.curves
+    lowest_income = float(curves["gross_income"].min())
+    lower, upper = sorted(
+        float(claim)
+        for claim in curves.loc[
+            curves["gross_income"] == lowest_income,
+            "anspruch",
+        ]
+    )
+    for claim in (lower, upper):
+        _add_leader(
+            figure,
+            x0=lowest_income,
+            y0=claim,
+            x1=measurement_income,
+            y1=claim,
+        )
+        _add_measurement_rule(
+            figure,
+            x0=measurement_income - end_cap,
+            y0=claim,
+            x1=measurement_income + end_cap,
+            y1=claim,
+        )
+    _add_measurement_rule(
+        figure,
+        x0=measurement_income,
+        y0=lower,
+        x1=measurement_income,
+        y1=upper,
+    )
+    figure.add_annotation(
+        x=measurement_income,
+        y=0.5 * (lower + upper),
+        text=_format_euro_label(upper - lower),
+        showarrow=False,
+        xanchor="left",
+        xshift=DIMENSION_LABEL_OFFSET_PIXELS,
+        font={"size": DIMENSION_LABEL_FONT_SIZE, "color": ANNOTATION_LINE_COLOUR},
+        bgcolor=ANNOTATION_BACKGROUND,
+    )
 
 
-def _format_euro_with_cents(amount: float) -> str:
-    """Write a euro amount to the cent.
+def _add_measurement_rule(
+    figure: go.Figure,
+    x0: float,
+    y0: float,
+    x1: float,
+    y1: float,
+) -> None:
+    """Draw a solid segment: a measurement line or one of its end caps."""
+    figure.add_shape(
+        type="line",
+        x0=x0,
+        y0=y0,
+        x1=x1,
+        y1=y1,
+        line={"color": ANNOTATION_LINE_COLOUR, "width": 2, "dash": "solid"},
+        layer="above",
+    )
 
-    Used for every rent ceiling, because the Angemessenheitsgrenze ohne
-    schlüssiges Konzept is a product of a markup and lands on cents, and two
-    ceilings shown side by side must be written to the same precision.
-    """
-    return f"{amount:,.2f}"
+
+def _add_leader(
+    figure: go.Figure,
+    x0: float,
+    y0: float,
+    x1: float,
+    y1: float,
+) -> None:
+    """Draw the dotted leader running from a measured point to its rule."""
+    figure.add_shape(
+        type="line",
+        x0=x0,
+        y0=y0,
+        x1=x1,
+        y1=y1,
+        line={"color": ANNOTATION_LINE_COLOUR, "width": 1, "dash": "dot"},
+        layer="above",
+    )
+
+
+def _format_euro_label(amount: float) -> str:
+    """Write a measured distance as whole euro beside its dimension line."""
+    return f"{amount:,.0f} €"
 
 
 def _plot_ceiling_eur_per_month(

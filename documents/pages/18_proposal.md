@@ -16,4 +16,3 @@ Three options:
 
 Most likely: Optional companion pacakge with the mapping I collected, combined with the
 paternalistic approach and a user-warning if default is being used.
-

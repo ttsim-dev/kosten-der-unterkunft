@@ -406,8 +406,8 @@ DATA_CATALOG.add(
     KDU_VS_WOHNGELD / "cap_comparison_distribution.html",
 )
 DATA_CATALOG.add(
-    "cap_ratio_spread_distribution",
-    KDU_VS_WOHNGELD / "cap_ratio_spread_distribution.html",
+    "cap_ratio_by_household_size",
+    KDU_VS_WOHNGELD / "cap_ratio_by_household_size.html",
 )
 DATA_CATALOG.add(
     "cap_difference_distribution",
@@ -422,8 +422,8 @@ DATA_CATALOG.add(
     KDU_VS_WOHNGELD / "cap_difference_distribution.png",
 )
 DATA_CATALOG.add(
-    "cap_ratio_spread_distribution_png",
-    KDU_VS_WOHNGELD / "cap_ratio_spread_distribution.png",
+    "cap_ratio_by_household_size_png",
+    KDU_VS_WOHNGELD / "cap_ratio_by_household_size.png",
 )
 DATA_CATALOG.add(
     "mietenstufe_dispersion_figure",
@@ -468,6 +468,18 @@ DATA_CATALOG.add(
 DATA_CATALOG.add(
     "share_of_stock_above_cap_gemeinde",
     MARKET_RENT_COMPARISON / "share_of_stock_above_cap_gemeinde.parquet",
+)
+DATA_CATALOG.add(
+    "cap_over_bestandsmiete",
+    MARKET_RENT_COMPARISON / "cap_over_bestandsmiete.html",
+)
+DATA_CATALOG.add(
+    "cap_over_bestandsmiete_png",
+    MARKET_RENT_COMPARISON / "cap_over_bestandsmiete.png",
+)
+DATA_CATALOG.add(
+    "cap_over_bestandsmiete_table",
+    MARKET_RENT_COMPARISON / "cap_over_bestandsmiete.csv",
 )
 
 # How far the choice of cap moves the gross income at which a household
