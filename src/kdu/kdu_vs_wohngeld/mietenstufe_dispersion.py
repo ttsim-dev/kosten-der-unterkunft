@@ -10,6 +10,11 @@ This module states what the classification does and does not carry:
 - the share of the variance in the log local cap accounted for by the
   Mietenstufe, by the Bundesland, by the two together, and by the Kreis.
 
+The classifications distinguish different numbers of groups, and a
+between-group share rises with the number of groups whatever the grouping
+carries. Each share is therefore reported twice: as the raw between-group
+share, and adjusted for the degrees of freedom the classification spends.
+
 The exercise is descriptive. The variance shares are the between-group share
 of the total sum of squares under a classification, not an estimate of a
 parameter, so no standard error, p-value or significance statement appears
@@ -27,7 +32,6 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
-from plotly.subplots import make_subplots
 
 from kdu.weighting import weighted_quantile, weighted_standard_deviation
 
@@ -46,15 +50,22 @@ CLASSIFICATIONS: dict[str, tuple[str, ...]] = {
     "kreis": ("district_ags",),
 }
 
-CLASSIFICATION_LABELS: dict[str, str] = {
-    "mietenstufe": "Mietenstufe",
-    "bundesland": "Bundesland",
-    "mietenstufe_and_bundesland": "Mietenstufe × Bundesland",
-    "kreis": "Kreis",
-}
-
 NEUTRAL_COLOUR = "#9aa0a6"
 ACCENT_COLOUR = "#e8833a"
+
+# The figure is projected in a lecture room, where the default sizes are
+# unreadable from the back rows.
+BASE_FONT_SIZE = 18
+TITLE_FONT_SIZE = 22
+
+HOUSEHOLD_SIZE_WORDS: dict[int, str] = {
+    1: "one",
+    2: "two",
+    3: "three",
+    4: "four",
+    5: "five",
+    6: "six",
+}
 
 
 def dispersion_within_mietenstufe(
@@ -107,26 +118,66 @@ def variance_shares(
 
     Returns:
         One row per entry of {data}`CLASSIFICATIONS`, with the number of groups
-        it distinguishes and the share of the variance in the log local cap
-        that lies between those groups.
+        it distinguishes, the share of the variance in the log local cap that
+        lies between those groups, and that share adjusted for the degrees of
+        freedom the classification spends.
 
     """
     observed = _observations_at(frame, household_size)
     log_cap = np.log(observed["kdu_cap"].to_numpy(dtype="float64"))
-    rows = [
-        {
-            "household_size": household_size,
-            "classification": name,
-            "n_groups": int(observed.groupby(list(columns), observed=True).ngroups),
-            "n_gemeinden": len(observed),
-            "variance_share": variance_share_between_groups(
-                log_cap,
-                [observed[column].to_numpy() for column in columns],
-            ),
-        }
-        for name, columns in CLASSIFICATIONS.items()
-    ]
+    rows = []
+    for name, columns in CLASSIFICATIONS.items():
+        n_groups = int(observed.groupby(list(columns), observed=True).ngroups)
+        share = variance_share_between_groups(
+            log_cap,
+            [observed[column].to_numpy() for column in columns],
+        )
+        rows.append(
+            {
+                "household_size": household_size,
+                "classification": name,
+                "n_groups": n_groups,
+                "n_gemeinden": len(observed),
+                "variance_share": share,
+                "variance_share_adjusted": degrees_of_freedom_adjusted_share(
+                    share,
+                    n_observations=len(observed),
+                    n_groups=n_groups,
+                ),
+            },
+        )
     return pd.DataFrame(rows)
+
+
+def degrees_of_freedom_adjusted_share(
+    share: float,
+    n_observations: int,
+    n_groups: int,
+) -> float:
+    r"""Charge a between-group variance share for the groups it distinguishes.
+
+    A between-group share rises with the number of groups whether or not the
+    grouping carries anything, because each additional group takes one more
+    degree of freedom out of the within-group sum of squares. The adjustment
+    compares the within-group and total sums of squares per remaining degree
+    of freedom rather than in level:
+
+    $$1 - (1 - \text{share}) \frac{n - 1}{n - k}$$
+
+    Args:
+        share: The between-group share of the total sum of squares, or `nan`
+            where the decomposed quantity does not vary.
+        n_observations: The number of observations entering the decomposition.
+        n_groups: The number of groups the classification distinguishes.
+
+    Returns:
+        The adjusted share, never above `share`, or `nan` if `share` is `nan`.
+
+    """
+    _fail_if_groups_exhaust_the_observations(n_observations, n_groups)
+    return float(
+        1.0 - (1.0 - share) * (n_observations - 1) / (n_observations - n_groups),
+    )
 
 
 def variance_share_between_groups(
@@ -160,74 +211,73 @@ def plot_mietenstufe_dispersion(
     shares: pd.DataFrame,
     household_size: int = REFERENCE_HOUSEHOLD_SIZE,
 ) -> go.Figure:
-    """Draw the dispersion inside each Mietenstufe beside the variance shares.
+    """Draw the local caps that share one Mietenstufe, one box per Mietenstufe.
 
     Args:
         frame: The output of {func}`kdu.kdu_vs_wohngeld.cap_comparison.
             build_cap_comparison`.
-        shares: The output of {func}`variance_shares`.
+        shares: The output of {func}`variance_shares`. Its `n_gemeinden`
+            supplies the sample count the title reports.
         household_size: The size at which the caps are read.
 
     Returns:
-        A two-panel figure: the distribution of the local cap within each
-        statutory class on the left, and how much of the variation each
-        classification accounts for on the right.
+        A one-panel figure: the distribution of the local cap inside each
+        statutory class, with the number of Gemeinden on each tick label.
 
     """
     observed = _observations_at(frame, household_size)
-    figure = make_subplots(
-        rows=1,
-        cols=2,
-        column_widths=[0.62, 0.38],
-        horizontal_spacing=0.12,
-        subplot_titles=(
-            "Local caps sharing one Mietenstufe",
-            "Share of variation in the local cap accounted for",
-        ),
-    )
+    figure = go.Figure()
     for mietenstufe, part in observed.groupby("mietenstufe", observed=True):
         figure.add_trace(
             go.Box(
                 y=part["kdu_cap"].to_numpy(dtype="float64"),
-                name=str(mietenstufe),
-                marker_color=NEUTRAL_COLOUR,
+                name=_tick_label(cast("int", mietenstufe), len(part)),
+                fillcolor=NEUTRAL_COLOUR,
+                line_color=ACCENT_COLOUR,
+                opacity=0.6,
                 boxpoints=False,
                 showlegend=False,
             ),
-            row=1,
-            col=1,
         )
-
-    ordered = shares.set_index("classification").reindex(CLASSIFICATIONS)
-    labels = [CLASSIFICATION_LABELS[name] for name in ordered.index]
-    values = ordered["variance_share"].to_numpy(dtype="float64")
-    figure.add_trace(
-        go.Bar(
-            x=values,
-            y=labels,
-            orientation="h",
-            marker_color=[
-                ACCENT_COLOUR if name == "mietenstufe" else NEUTRAL_COLOUR
-                for name in ordered.index
-            ],
-            text=[f"{value:.2f}" for value in values],
-            textposition="outside",
-            showlegend=False,
-        ),
-        row=1,
-        col=2,
-    )
     figure.update_layout(
-        title=(
-            "The Mietenstufe accounts for less of the local cap than the "
-            "Bundesland does"
-        ),
-        bargap=0.35,
+        title=_figure_title(shares, household_size),
+        title_font_size=TITLE_FONT_SIZE,
+        font_size=BASE_FONT_SIZE,
     )
-    figure.update_xaxes(title_text="Mietenstufe", row=1, col=1)
-    figure.update_yaxes(title_text="Local cap, € per month", row=1, col=1)
-    figure.update_xaxes(title_text="", range=[0, 1.05], row=1, col=2)
+    figure.update_xaxes(title_text="Mietenstufe", tickfont_size=BASE_FONT_SIZE)
+    figure.update_yaxes(
+        title_text="Local cap, € per month",
+        tickfont_size=BASE_FONT_SIZE,
+    )
     return figure
+
+
+def _figure_title(shares: pd.DataFrame, household_size: int) -> str:
+    """Name the estimand, the unit, the weighting and the sample count."""
+    n_gemeinden = int(shares["n_gemeinden"].to_numpy()[0])
+    size_word = HOUSEHOLD_SIZE_WORDS.get(household_size, str(household_size))
+    return (
+        f"Local {size_word}-person KdU cap by Mietenstufe — "
+        f"€ per month; one Gemeinde one weight; n = {n_gemeinden:,}"
+    )
+
+
+def _tick_label(mietenstufe: int, n_gemeinden: int) -> str:
+    """Label a box with its Mietenstufe and the Gemeinden it covers."""
+    return f"{mietenstufe}<br>n = {n_gemeinden:,}"
+
+
+def _fail_if_groups_exhaust_the_observations(
+    n_observations: int,
+    n_groups: int,
+) -> None:
+    """Reject a classification that leaves no residual degrees of freedom."""
+    if n_groups >= n_observations:
+        msg = (
+            f"a classification of {n_observations} observations into "
+            f"{n_groups} groups leaves no degrees of freedom to adjust for"
+        )
+        raise ValueError(msg)
 
 
 def _observations_at(frame: pd.DataFrame, household_size: int) -> pd.DataFrame:

@@ -5,9 +5,22 @@ import pandas as pd
 import pytest
 
 from kdu.kdu_vs_wohngeld.mietenstufe_dispersion import (
+    degrees_of_freedom_adjusted_share,
     dispersion_within_mietenstufe,
     variance_share_between_groups,
     variance_shares,
+)
+
+# The decomposition as it stands on the collected caps at household size one:
+# the classification, the number of groups it distinguishes, the unadjusted
+# between-group variance share, and the degrees-of-freedom adjusted share
+# computed independently of this code.
+N_GEMEINDEN_IN_DECOMPOSITION = 9397
+REPORTED_DECOMPOSITION = (
+    ("mietenstufe", 7, 0.4102229427397104, 0.4098),
+    ("bundesland", 16, 0.4569447108792929, 0.4561),
+    ("mietenstufe_and_bundesland", 69, 0.7385401070501563, 0.7366),
+    ("kreis", 358, 0.9188074916766683, 0.9156),
 )
 
 
@@ -75,6 +88,91 @@ def test_variance_shares_count_the_groups_each_classification_distinguishes() ->
     shares = variance_shares(frame)
     n_groups = shares.set_index("classification").loc["mietenstufe", "n_groups"]
     assert n_groups == 2
+
+
+@pytest.mark.parametrize(
+    ("n_groups", "share", "expected_adjusted"),
+    [(entry[1], entry[2], entry[3]) for entry in REPORTED_DECOMPOSITION],
+    ids=[entry[0] for entry in REPORTED_DECOMPOSITION],
+)
+def test_adjusted_share_matches_the_independently_computed_value(
+    n_groups: int,
+    share: float,
+    expected_adjusted: float,
+) -> None:
+    """The adjusted share rescales the unaccounted-for share by the lost degrees."""
+    np.testing.assert_allclose(
+        degrees_of_freedom_adjusted_share(
+            share,
+            n_observations=N_GEMEINDEN_IN_DECOMPOSITION,
+            n_groups=n_groups,
+        ),
+        expected_adjusted,
+        atol=5e-5,
+    )
+
+
+@pytest.mark.parametrize(
+    ("n_groups", "share"),
+    [(entry[1], entry[2]) for entry in REPORTED_DECOMPOSITION],
+    ids=[entry[0] for entry in REPORTED_DECOMPOSITION],
+)
+def test_adjusted_share_never_exceeds_the_unadjusted_share(
+    n_groups: int,
+    share: float,
+) -> None:
+    """Charging a classification for the groups it spends can only lower its share."""
+    assert (
+        degrees_of_freedom_adjusted_share(
+            share,
+            n_observations=N_GEMEINDEN_IN_DECOMPOSITION,
+            n_groups=n_groups,
+        )
+        <= share
+    )
+
+
+def test_variance_shares_reports_a_finite_adjusted_share_for_every_classification() -> (
+    None
+):
+    """Every classification row carries an adjusted share rather than a missing one."""
+    shares = variance_shares(_four_gemeinden())
+    assert bool(np.isfinite(shares["variance_share_adjusted"]).all())
+
+
+def test_dispersion_rows_carry_no_adjusted_share_in_the_combined_table() -> None:
+    """The adjusted share is undefined for the per-Mietenstufe dispersion rows."""
+    frame = _four_gemeinden()
+    combined = pd.concat(
+        [
+            dispersion_within_mietenstufe(frame).assign(
+                measure="dispersion_within_mietenstufe",
+            ),
+            variance_shares(frame).assign(measure="variance_share_between_groups"),
+        ],
+        ignore_index=True,
+    )
+    dispersion_rows = combined.query("measure == 'dispersion_within_mietenstufe'")
+    assert dispersion_rows["variance_share_adjusted"].isna().all()
+
+
+def test_four_gemeinden_fixture_has_variance_to_decompose() -> None:
+    """The synthetic frame the adjusted-share tests read varies in the local cap."""
+    assert _four_gemeinden()["kdu_cap"].nunique() == 4
+
+
+def _four_gemeinden() -> pd.DataFrame:
+    """Return four Gemeinden spread over two Mietenstufen and two Kreise."""
+    return pd.DataFrame(
+        {
+            "ags": ["01", "02", "03", "04"],
+            "household_size": [1, 1, 1, 1],
+            "kdu_cap": [400.0, 420.0, 500.0, 520.0],
+            "mietenstufe": [1, 1, 2, 2],
+            "state_code": ["01", "01", "01", "01"],
+            "district_ags": ["011", "011", "012", "012"],
+        },
+    )
 
 
 def _one_mietenstufe(caps: list[float]) -> pd.DataFrame:
