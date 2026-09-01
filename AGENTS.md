@@ -122,4 +122,4 @@ and every result covers every Gemeinde.
 **Language.** No abbreviations in identifiers or prose. German legal terms of art —
 Bruttokaltmiete, Mietenstufe, Bedarfsgemeinschaft, Härtefallregelung — stay German and
 stay spelled out. The map is in German because its readers are; everything else is in
-English. The word "proxy" is not used.
+English.
