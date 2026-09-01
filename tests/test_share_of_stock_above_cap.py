@@ -5,11 +5,17 @@ import pandas as pd
 import pytest
 
 from kdu.market_rent_comparison.share_of_stock_above_cap import (
+    ABSOLUTE_DIFFERENCE_LABEL,
+    GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT,
+    PRESENTATION_BASE_FONT_SIZE,
     RENT_BANDS,
+    SIGNED_DIFFERENCE_LABEL,
     _kalte_betriebskosten_per_gemeinde,
     build_gemeinde_shares,
     nettokaltmiete_threshold,
     share_above_threshold,
+    share_of_stock_above_cap_figure,
+    summarise_shares,
 )
 
 # Kalte Betriebskosten used throughout these tests, in euro per square metre.
@@ -205,3 +211,149 @@ def test_a_kreis_reporting_no_betriebskosten_takes_the_national_mean() -> None:
     )
 
     np.testing.assert_allclose(betriebskosten.to_numpy(), [1.75], atol=1e-12)
+
+
+def _shares_frame(
+    local: list[float],
+    fallback: list[float],
+) -> pd.DataFrame:
+    """Return a per-Gemeinde share frame with the two shares set directly."""
+    frame = pd.DataFrame(
+        {
+            "ags": [f"0100{index:04d}" for index in range(len(local))],
+            "household_size": [1] * len(local),
+            "mietenstufe": [3] * len(local),
+            "share_above_local_kdu_cap": local,
+            "share_above_wohngeld_fallback_cap": fallback,
+        },
+    )
+    frame["share_difference"] = (
+        frame["share_above_local_kdu_cap"] - frame["share_above_wohngeld_fallback_cap"]
+    )
+    frame["absolute_share_difference"] = frame["share_difference"].abs()
+    return frame
+
+
+def _median_of(summary: pd.DataFrame, quantity: str) -> float:
+    """Return the median reported for one quantity at household size one."""
+    row = summary.loc[
+        (summary["household_size"] == 1) & (summary["quantity"] == quantity)
+    ]
+    return float(row["median"].to_numpy()[0])
+
+
+def test_summarise_shares_reports_the_median_share_above_the_grenze() -> None:
+    """The share priced above the Grenze ohne schlüssiges Konzept is its own row."""
+    summary = summarise_shares(
+        _shares_frame([0.10, 0.20, 0.30], [0.40, 0.50, 0.60]),
+    )
+
+    np.testing.assert_allclose(
+        _median_of(summary, GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT),
+        0.50,
+        atol=1e-12,
+    )
+
+
+def test_summarise_shares_reports_the_median_share_above_the_local_cap() -> None:
+    """The share priced above the local KdU cap keeps its own separate row."""
+    summary = summarise_shares(
+        _shares_frame([0.10, 0.20, 0.30], [0.40, 0.50, 0.60]),
+    )
+
+    np.testing.assert_allclose(_median_of(summary, "Local KdU cap"), 0.20, atol=1e-12)
+
+
+def test_summarise_shares_median_difference_is_not_the_difference_of_medians() -> None:
+    """The three medians are separate statistics and must never be subtracted."""
+    summary = summarise_shares(_shares_frame([0.10, 0.60], [0.60, 0.10]))
+
+    median_of_differences = _median_of(summary, ABSOLUTE_DIFFERENCE_LABEL)
+    difference_of_medians = abs(
+        _median_of(summary, "Local KdU cap")
+        - _median_of(summary, GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT),
+    )
+
+    assert not np.isclose(median_of_differences, difference_of_medians, atol=1e-9)
+
+
+def test_summarise_shares_names_no_quantity_benchmark() -> None:
+    """No reported quantity is labelled a benchmark."""
+    summary = summarise_shares(_shares_frame([0.10, 0.20], [0.30, 0.40]))
+
+    assert not any("benchmark" in quantity.lower() for quantity in summary["quantity"])
+
+
+def test_share_of_stock_above_cap_figure_carries_no_in_figure_title() -> None:
+    """The slide supplies the heading, so the figure draws none."""
+    figure = share_of_stock_above_cap_figure(
+        _shares_frame([0.10, 0.20, 0.30], [0.40, 0.50, 0.60]),
+    )
+
+    assert figure.layout.title.text is None
+
+
+def test_share_of_stock_above_cap_figure_names_the_grenze_in_its_legend() -> None:
+    """The grey distribution is labelled Grenze ohne schlüssiges Konzept."""
+    figure = share_of_stock_above_cap_figure(
+        _shares_frame([0.10, 0.20, 0.30], [0.40, 0.50, 0.60]),
+    )
+
+    assert GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT in [
+        trace.name for trace in figure.data
+    ]
+
+
+def test_share_of_stock_above_cap_figure_sets_a_projector_legible_base_font() -> None:
+    """The base font is large enough to read at 1600 by 900 pixels."""
+    figure = share_of_stock_above_cap_figure(
+        _shares_frame([0.10, 0.20, 0.30], [0.40, 0.50, 0.60]),
+    )
+
+    assert figure.layout.font.size >= PRESENTATION_BASE_FONT_SIZE
+
+
+def test_summarise_shares_reports_the_median_signed_difference() -> None:
+    """The typical direction of the shift is reported, not only its magnitude."""
+    summary = summarise_shares(_shares_frame([0.10, 0.60], [0.60, 0.10]))
+
+    np.testing.assert_allclose(
+        _median_of(summary, SIGNED_DIFFERENCE_LABEL),
+        0.0,
+        atol=1e-12,
+    )
+
+
+def test_summarise_shares_signed_difference_is_local_minus_grenze() -> None:
+    """A local cap tighter than the Grenze gives a positive signed difference."""
+    summary = summarise_shares(_shares_frame([0.60, 0.60], [0.10, 0.10]))
+
+    np.testing.assert_allclose(
+        _median_of(summary, SIGNED_DIFFERENCE_LABEL),
+        0.50,
+        atol=1e-12,
+    )
+
+
+def test_summarise_shares_absolute_difference_row_says_it_is_absolute() -> None:
+    """The magnitude-only row must not read as a signed shift."""
+    summary = summarise_shares(_shares_frame([0.10, 0.60], [0.60, 0.10]))
+
+    assert "absolute" in ABSOLUTE_DIFFERENCE_LABEL.lower()
+    np.testing.assert_allclose(
+        _median_of(summary, ABSOLUTE_DIFFERENCE_LABEL),
+        0.50,
+        atol=1e-12,
+    )
+
+
+def test_summarise_shares_reports_four_quantities_per_household_size() -> None:
+    """Both levels, the absolute difference and the signed difference are reported."""
+    summary = summarise_shares(_shares_frame([0.10, 0.60], [0.60, 0.10]))
+
+    assert summary["quantity"].tolist() == [
+        "Local KdU cap",
+        GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT,
+        ABSOLUTE_DIFFERENCE_LABEL,
+        SIGNED_DIFFERENCE_LABEL,
+    ]

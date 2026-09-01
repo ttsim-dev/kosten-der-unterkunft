@@ -8,23 +8,24 @@ Cursor) when working with this repository.
 ## Overview
 
 `kdu` measures how far the maximum rent a local Jobcenter will recognise under SGB II
-and SGB XII departs from the statutory fallback a tax-transfer model substitutes when it
-has no local figure, and what that departure changes.
+and SGB XII departs from the Angemessenheitsgrenze ohne schlüssiges Konzept — the
+statutory figure a tax-transfer model substitutes when it has no local one — and what
+that departure changes.
 
-The caps come from roughly 400 municipal Richtlinien collected by hand. The benchmark is
-the sum of the Wohngeld-Höchstbetrag (Anlage 1 zu § 12 Absatz 1 WoGG) and the
-Klimakomponente (§ 12 Absatz 7 WoGG), times 1.10 — the Sicherheitszuschlag the
-Bundessozialgericht prescribes where a Kreis has published no schlüssiges Konzept (BSG,
-12.12.2013 - B 4 AS 87/12 R). Adding the Klimakomponente before the markup follows
-consistent instance case law and is unresolved at the Bundessozialgericht; see
-`src/kdu/data_management/clean_wohngeld.py` for the decisions and their reasoning. The
-project reports six results and one interactive map.
+The caps come from roughly 400 municipal Richtlinien collected by hand. The
+Angemessenheitsgrenze ohne schlüssiges Konzept is the sum of the Wohngeld-Höchstbetrag
+(Anlage 1 zu § 12 Absatz 1 WoGG) and the Klimakomponente (§ 12 Absatz 7 WoGG), times
+1.10 — the Sicherheitszuschlag the Bundessozialgericht prescribes where a Kreis has
+published no schlüssiges Konzept (BSG, 12.12.2013 - B 4 AS 87/12 R). Adding the
+Klimakomponente before the markup follows consistent instance case law and is unresolved
+at the Bundessozialgericht; see `src/kdu/data_management/clean_wohngeld.py` for the
+decisions and their reasoning. The project reports six results and one interactive map.
 
 The central finding: at household size one, weighting each Gemeinde equally, the median
-Gemeinde's cap sits 4.0 % below the fallback while the tenth and ninetieth percentiles
-sit 20.6 % below and 17.0 % above it, and the statutory Mietenstufe cannot repair that,
-because it accounts for 41 % of the variation in local caps while the residual variation
-still tracks actual market rents.
+Gemeinde's cap sits 4.0 % below the Grenze ohne schlüssiges Konzept while the tenth and
+ninetieth percentiles sit 20.6 % below and 17.0 % above it, and the statutory
+Mietenstufe cannot repair that, because it accounts for 41 % of the variation in local
+caps while the residual variation still tracks actual market rents.
 
 ## Build and test
 
@@ -42,14 +43,14 @@ committed.
 
 ## The six results
 
-| package                  | question                                                                                                           |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `kdu_vs_wohngeld`        | How far do local caps depart from the statutory fallback, in level and across household sizes within one Gemeinde? |
-| `kdu_vs_wohngeld`        | How much variation in local caps does the Mietenstufe leave unaccounted for? *(lead result)*                       |
-| `market_rent_comparison` | Do local caps track actual local market rents where the fallback structurally cannot?                              |
-| `market_rent_comparison` | How much of the local rented stock does each cap price above itself?                                               |
-| `eligibility`            | By how much does the choice of cap move the gross income at which a household leaves the transfer system?          |
-| `validation`             | Do the collected caps agree with what Jobcenter actually recognise?                                                |
+| package                  | question                                                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `kdu_vs_wohngeld`        | How far do local caps depart from the Grenze ohne schlüssiges Konzept, in level and across household sizes within one Gemeinde? |
+| `kdu_vs_wohngeld`        | How much variation in local caps does the Mietenstufe leave unaccounted for? *(lead result)*                                    |
+| `market_rent_comparison` | Do local caps track actual local market rents where the Grenze ohne schlüssiges Konzept structurally cannot?                    |
+| `market_rent_comparison` | How much of the local rented stock does each cap price above itself?                                                            |
+| `eligibility`            | By how much does the choice of cap move the gross income at which a household leaves the transfer system?                       |
+| `validation`             | Do the collected caps agree with what Jobcenter actually recognise?                                                             |
 
 ## Architecture
 
@@ -109,14 +110,14 @@ Kreis Steinfurt has 24 Gemeinden and 23 distinct caps under a single directive. 
 Kreis is the Träger that decides; it is not the unit at which the rule applies. Do not
 treat a Kreis as one observation without saying why.
 
-**Some caps equal the fallback exactly.** Where a Träger has adopted the same
-construction the benchmark uses — Höchstbetrag plus Klimakomponente, the sum times 1.10
-— its departure is an arithmetic identity rather than a finding. A Träger that instead
+**Some caps equal the Grenze ohne schlüssiges Konzept exactly.** Where a Träger has
+adopted the same construction — Höchstbetrag plus Klimakomponente, the sum times 1.10 —
+its departure is an arithmetic identity rather than a finding. A Träger that instead
 applies the bare Höchstbetrag times 1.10 lands about one markup on the Klimakomponente
-below the benchmark, which is a real difference in what is recognised and is reported as
-one. Which Träger does which cannot be read off the caps, because those Richtlinien were
-never obtained; the project does not separate them out, and every result covers every
-Gemeinde.
+below the Grenze ohne schlüssiges Konzept, which is a real difference in what is
+recognised and is reported as one. Which Träger does which cannot be read off the caps,
+because those Richtlinien were never obtained; the project does not separate them out,
+and every result covers every Gemeinde.
 
 **Language.** No abbreviations in identifiers or prose. German legal terms of art —
 Bruttokaltmiete, Mietenstufe, Bedarfsgemeinschaft, Härtefallregelung — stay German and

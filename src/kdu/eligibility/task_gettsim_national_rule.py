@@ -27,7 +27,7 @@ def task_gettsim_national_rule(
         ELIGIBILITY / "gettsim_national_rule_comparison.csv"
     ),
 ) -> None:
-    """Compare GETTSIM's rule, the local cap and the Wohngeld fallback."""
+    """Compare GETTSIM's rule, the local cap and the Grenze ohne schlüssiges Konzept."""
     heating = national_heizkosten_eur_per_month(
         pd.read_parquet(wohnkostenstatistik_file),
     )

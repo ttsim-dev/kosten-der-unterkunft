@@ -69,9 +69,9 @@ BEZUG_IM_VORJAHR = True
 # Whether the household owns the dwelling it lives in.
 #
 # `berechtigte_wohnfläche` reads a different admissible-area table for owners.
-# The collected Richtlinien and the Wohngeld fallback alike set caps on rent,
-# so the comparison is defined for tenants and the owner branch is excluded
-# deliberately rather than left to a default.
+# The collected Richtlinien and the Grenze ohne schlüssiges Konzept alike set
+# caps on rent, so the comparison is defined for tenants and the owner branch is
+# excluded deliberately rather than left to a default.
 BEWOHNT_EIGENTUM = False
 
 # GETTSIM's national ceiling on the warm rent per square metre, in euro per
@@ -398,13 +398,15 @@ def compare_recognised_housing_costs(
 
     The same household — same actual Bruttokaltmiete, same Wohnfläche, same
     Heizkosten — is put through GETTSIM's national rule, through the local KdU
-    cap of each Gemeinde, and through the Wohngeld fallback of each Gemeinde.
-    GETTSIM's rule is national and yields one number; the other two are
+    cap of each Gemeinde, and through the Angemessenheitsgrenze ohne schlüssiges
+    Konzept of each Gemeinde. GETTSIM's rule is national and yields one number;
+    the other two are
     distributions over Gemeinden and are reported by their deciles and median.
 
     Args:
         caps: The cleaned cap table, keyed `ags` by `household_size`.
-        fallback: The Wohngeld fallback, keyed `ags` by `household_size`.
+        fallback: The Grenze ohne schlüssiges Konzept, keyed `ags` by
+            `household_size`.
         heizkosten_per_household_size: Recognised Heizkosten by household size.
         household_sizes: The household sizes to compare.
 
@@ -457,7 +459,8 @@ def gettsim_comparison_table(
 
     Args:
         caps: The cleaned cap table, keyed `ags` by `household_size`.
-        fallback: The Wohngeld fallback, keyed `ags` by `household_size`.
+        fallback: The Grenze ohne schlüssiges Konzept, keyed `ags` by
+            `household_size`.
         heating: The heating assumption from the Wohnkostenstatistik.
 
     Returns:

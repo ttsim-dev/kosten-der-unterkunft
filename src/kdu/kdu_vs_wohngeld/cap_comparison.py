@@ -1,17 +1,17 @@
-"""How far a local KdU cap departs from the Wohngeld-based benchmark.
+"""How far a local KdU cap departs from the Grenze ohne schlüssiges Konzept.
 
 Where a Kreis publishes no schlüssiges Konzept, the Angemessenheitsgrenze is
 the Wohngeld table plus a Sicherheitszuschlag of 10 % (BSG, 12.12.2013 -
 B 4 AS 87/12 R), read here as the Anlage 1 Höchstbetrag together with the
 Klimakomponente of § 12 Absatz 7 WoGG. {mod}`kdu.data_management.clean_wohngeld`
-builds that benchmark and records the case law it rests on. It is the standard
-every local rule is measured against here, in two ways:
+builds that Grenze ohne schlüssiges Konzept and records the case law it rests
+on. It is the standard every local rule is measured against here, in two ways:
 
 - the departure at a given household size, as a euro difference, a ratio and a
   log ratio;
 - the spread of that ratio across household sizes within one Gemeinde, which
   states how far a single per-Gemeinde correction factor can carry a
-  tax-transfer model that has only the fallback.
+  tax-transfer model that has only the Grenze ohne schlüssiges Konzept.
 
 The functions here are pure: they take frames and return frames or figures.
 {mod}`kdu.kdu_vs_wohngeld.task_cap_comparison` owns the reading and writing.
@@ -37,7 +37,7 @@ from kdu.weighting import (
     weighted_standard_deviation,
 )
 
-pio.templates.default = "plotly_dark"
+pio.templates.default = "plotly_white"
 
 # Household sizes over which the ratio's spread within a Gemeinde is measured.
 # Sizes above four are published by too few Träger to compare across regions.
@@ -48,8 +48,8 @@ SPREAD_HOUSEHOLD_SIZES: tuple[int, ...] = (1, 2, 3, 4)
 MATERIAL_SPREAD_THRESHOLD = 0.05
 
 # The unemphasised series and the one carrying the claim.
-NEUTRAL_COLOUR = "#9aa0a6"
-ACCENT_COLOUR = "#e8833a"
+NEUTRAL_COLOUR = "#5f6368"
+ACCENT_COLOUR = "#c25e12"
 
 # The household size the euro departure is drawn at. It is the size at which
 # every Träger publishes a cap, and the one the single-adult Modellhaushalt of
@@ -57,15 +57,16 @@ ACCENT_COLOUR = "#e8833a"
 ONE_PERSON_HOUSEHOLD_SIZE = 1
 
 # Bins over the euro departure. Enough to show that the distribution has a body
-# either side of the benchmark, few enough that a bar survives projection.
+# either side of the Grenze ohne schlüssiges Konzept, few enough that a bar
+# survives projection.
 DIFFERENCE_HISTOGRAM_BINS = 60
 
 # The deciles drawn on the figure, and the side of their line the label sits
 # on. Three carry the claim — the body of the distribution and both tails — and
 # every one of them is labelled; further deciles would add lines a reader
-# cannot name and one of them would fall next to the benchmark line. The median
-# is the one below the benchmark, so its label goes left, away from the
-# benchmark line and its own annotations.
+# cannot name and one of them would fall next to the line marking the Grenze
+# ohne schlüssiges Konzept. The median is the one below that line, so its label
+# goes left, away from it and from its own annotations.
 DRAWN_DECILE_LABEL_SIDES: MappingProxyType[float, str] = MappingProxyType(
     {
         0.10: "right",
@@ -85,23 +86,25 @@ BENCHMARK_IDENTITY_TOLERANCE_EUR = 0.005
 # Empty margin kept either side of the drawn range, in euro per month.
 DIFFERENCE_AXIS_PADDING_EUR = 15.0
 
-# Type sizes for a figure read from the back of a lecture room.
-PROJECTED_BODY_FONT_SIZE = 16
-PROJECTED_TITLE_FONT_SIZE = 20
-PROJECTED_ANNOTATION_FONT_SIZE = 15
+# Type sizes for a figure read from the back of a lecture room, where the
+# rendered image is 1600 by 900 pixels wide on the slide.
+PROJECTED_BODY_FONT_SIZE = 20
+PROJECTED_AXIS_TITLE_FONT_SIZE = 24
+PROJECTED_ANNOTATION_FONT_SIZE = 20
 
 # Empty space kept above the tallest bar, as a multiple of its height, so the
 # annotations sit clear of the data rather than on top of it.
 DIFFERENCE_HEADROOM_FACTOR = 1.85
 
-# The plot area's own colour under `plotly_dark`, put behind a label so that a
-# decile line crossing it does not run through the type.
-ANNOTATION_BACKGROUND = "rgba(17, 17, 17, 0.85)"
+# The plot area's own colour, put behind a label so that a decile line crossing
+# it does not run through the type.
+ANNOTATION_BACKGROUND = "rgba(255, 255, 255, 0.85)"
 
 # Where each annotation sits in the empty band above the bars, in fractions of
 # the plot area. The deciles share the top line; the two annotations that both
-# belong to the benchmark line take one line each below it, because their text
-# is long enough to reach across a labelled decile.
+# belong to the line marking the Grenze ohne schlüssiges Konzept take one line
+# each below it, because their text is long enough to reach across a labelled
+# decile.
 DECILE_LABEL_HEIGHT = 0.99
 BENCHMARK_LABEL_HEIGHT = 0.86
 POINT_MASS_LABEL_HEIGHT = 0.75
@@ -112,18 +115,20 @@ def build_cap_comparison(
     fallback: pd.DataFrame,
     gemeinden: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Join the local cap to its Wohngeld-based benchmark and measure the departure.
+    """Join the local cap to the Grenze ohne schlüssiges Konzept and measure the gap.
 
     Args:
         caps: The local caps, keyed `ags` by `household_size`.
-        fallback: The statutory benchmark, keyed the same way.
+        fallback: The Angemessenheitsgrenze ohne schlüssiges Konzept, keyed the
+            same way.
         gemeinden: Gemeinde names, Kreis, Bundesland and population, keyed `ags`.
 
     Returns:
         One row per `ags` and `household_size`, carrying `cap_difference_eur`,
         `cap_ratio` and `log_cap_ratio` alongside the inputs they derive from.
-        A row without a Mietenstufe has no fallback and so no comparison; the
-        three measures are missing there rather than dropped.
+        A row without a Mietenstufe has no Grenze ohne schlüssiges Konzept and
+        so no comparison; the three measures are missing there rather than
+        dropped.
 
     """
     _fail_if_columns_absent(caps, ("ags", "household_size", "kdu_cap"))
@@ -149,14 +154,14 @@ def build_cap_comparison(
 def cap_ratio_spread_across_household_sizes(frame: pd.DataFrame) -> pd.DataFrame:
     """Measure how far a Gemeinde's departure moves with household size.
 
-    For each Gemeinde the ratio of local cap to fallback is read at household
-    sizes one to four and the spread is the largest minus the smallest. A
-    Gemeinde whose rule is a constant multiple of the fallback has a spread of
-    zero; a large spread means the local rule and the statutory table rise with
-    household size at different rates.
+    For each Gemeinde the ratio of the local cap to the Grenze ohne schlüssiges
+    Konzept is read at household sizes one to four and the spread is the largest
+    minus the smallest. A Gemeinde whose rule is a constant multiple of that
+    Grenze has a spread of zero; a large spread means the local rule and the
+    statutory table rise with household size at different rates.
 
     The measure is taken on the ratio itself rather than its logarithm, so it
-    reads directly as ratio points of the fallback.
+    reads directly as ratio points of the Grenze ohne schlüssiges Konzept.
 
     Args:
         frame: The output of {func}`build_cap_comparison`.
@@ -275,9 +280,10 @@ def allocate_bedarfsgemeinschaften_to_extreme_departure_gemeinde(
     {func}`allocate_bedarfsgemeinschaften_to_gemeinden` is an assumption rather
     than a measurement. This is the pair of allocations that brackets it: the
     Kreis stock at a household size goes entirely to the Gemeinde whose euro
-    departure from the Wohngeld-based benchmark is smallest, and entirely to the
-    Gemeinde whose departure is largest. Between them lies the mean departure of
-    every placement of the published stock over that Kreis's Gemeinden.
+    departure from the Grenze ohne schlüssiges Konzept is smallest, and entirely
+    to the Gemeinde whose departure is largest. Between them lies the mean
+    departure of every placement of the published stock over that Kreis's
+    Gemeinden.
 
     The extreme is taken on `cap_difference_eur` rather than on the cap itself,
     because that is the quantity the bracket is a bracket on: a Kreis whose
@@ -286,10 +292,11 @@ def allocate_bedarfsgemeinschaften_to_extreme_departure_gemeinde(
     share the stock equally, which leaves every statistic of that departure
     unmoved by the tie.
 
-    A Gemeinde without a cap, or without a Mietenstufe and so without a
-    benchmark, is no candidate. A Kreis in which no Gemeinde is a candidate
-    allocates nothing, matching the population allocation, whose weights on such
-    a Kreis carry no comparison and so drop out of every statistic.
+    A Gemeinde without a cap, or without a Mietenstufe and so without a Grenze
+    ohne schlüssiges Konzept, is no candidate. A Kreis in which no Gemeinde is a
+    candidate allocates nothing, matching the population allocation, whose
+    weights on such a Kreis carry no comparison and so drop out of every
+    statistic.
 
     Args:
         frame: The output of {func}`build_cap_comparison`, carrying
@@ -375,7 +382,7 @@ def attach_weights(
 
 
 def summarise_cap_ratio(frame: pd.DataFrame) -> pd.DataFrame:
-    """Describe the ratio of local cap to fallback by household size.
+    """Describe the ratio of local cap to Grenze ohne schlüssiges Konzept by size.
 
     Args:
         frame: The output of {func}`attach_weights`.
@@ -405,7 +412,7 @@ def summarise_cap_ratio(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def summarise_cap_difference_eur(frame: pd.DataFrame) -> pd.DataFrame:
-    """Describe the euro gap between local cap and fallback by household size.
+    """Describe the euro gap to the Grenze ohne schlüssiges Konzept by size.
 
     The ratio says how far a cap departs in proportional terms; the euro
     difference says what that is worth per month, which is the figure a
@@ -417,7 +424,7 @@ def summarise_cap_difference_eur(frame: pd.DataFrame) -> pd.DataFrame:
     Returns:
         A long table shaped like {func}`summarise_cap_ratio`, carrying the
         mean, every decile from `p10` to `p90`, and the share of the
-        distribution below the fallback.
+        distribution below the Grenze ohne schlüssiges Konzept.
 
     """
     _fail_if_columns_absent(frame, ("household_size", "cap_difference_eur"))
@@ -481,12 +488,12 @@ def summarise_cap_ratio_spread(spread: pd.DataFrame) -> pd.DataFrame:
 
 @dataclass(frozen=True)
 class BenchmarkPointMass:
-    """The Gemeinden whose one-person cap is the Wohngeld-based benchmark itself."""
+    """The Gemeinden whose one-person cap is the Grenze ohne schlüssiges Konzept."""
 
     count: int
-    """Gemeinden whose euro departure from the benchmark is zero."""
+    """Gemeinden whose euro departure from that Grenze is zero."""
     compared: int
-    """Gemeinden with both a cap and a benchmark at household size one."""
+    """Gemeinden with both a cap and that Grenze at household size one."""
 
     @property
     def share(self) -> float:
@@ -495,13 +502,14 @@ class BenchmarkPointMass:
 
 
 def count_gemeinden_at_benchmark(frame: pd.DataFrame) -> BenchmarkPointMass:
-    """Count the one-person caps that coincide with the Wohngeld-based benchmark.
+    """Count the one-person caps that coincide with the Grenze ohne schlüssiges Konzept.
 
-    A Träger that has adopted the construction the benchmark uses — Anlage 1
-    Höchstbetrag plus Klimakomponente, the sum times 1.10 — publishes the
-    benchmark itself, and its departure is an arithmetic identity rather than a
-    finding. Those Gemeinden are the point mass at zero in the distribution of
-    `cap_difference_eur`, and this states how many of them there are.
+    A Träger that has adopted the construction the Angemessenheitsgrenze ohne
+    schlüssiges Konzept is built from — Anlage 1 Höchstbetrag plus
+    Klimakomponente, the sum times 1.10 — publishes that Grenze itself, and its
+    departure is an arithmetic identity rather than a finding. Those Gemeinden
+    are the point mass at zero in the distribution of `cap_difference_eur`, and
+    this states how many of them there are.
 
     Coincidence is read as `np.isclose` with an absolute tolerance of
     {data}`BENCHMARK_IDENTITY_TOLERANCE_EUR` and no relative term, not as exact
@@ -517,8 +525,8 @@ def count_gemeinden_at_benchmark(frame: pd.DataFrame) -> BenchmarkPointMass:
 
     Returns:
         The count and the number of Gemeinden it is a count out of, both at
-        household size one. Rows without a cap or without a benchmark are
-        neither counted nor compared.
+        household size one. Rows without a cap or without a Grenze ohne
+        schlüssiges Konzept are neither counted nor compared.
 
     """
     _fail_if_columns_absent(frame, ("household_size", "cap_difference_eur"))
@@ -533,14 +541,14 @@ def count_gemeinden_at_benchmark(frame: pd.DataFrame) -> BenchmarkPointMass:
 
 
 def plot_cap_ratio_distribution(frame: pd.DataFrame) -> go.Figure:
-    """Draw the ratio of local cap to fallback by household size.
+    """Draw the ratio of local cap to Grenze ohne schlüssiges Konzept by size.
 
     Args:
         frame: The output of {func}`build_cap_comparison`.
 
     Returns:
-        A box plot per household size, with the fallback drawn as a reference
-        line at one.
+        A box plot per household size, with the Grenze ohne schlüssiges Konzept
+        drawn as a reference line at one.
 
     """
     figure = px.box(
@@ -551,29 +559,36 @@ def plot_cap_ratio_distribution(frame: pd.DataFrame) -> go.Figure:
         points=False,
         labels={
             "household_size": "Household size",
-            "cap_ratio": "Local cap ÷ Wohngeld-based benchmark",
+            "cap_ratio": "Local cap ÷ Grenze ohne schlüssiges Konzept",
         },
     )
     figure.add_hline(
         y=1.0,
         line_dash="dot",
         line_color=NEUTRAL_COLOUR,
-        annotation_text="Wohngeld-based benchmark",
+        annotation_text="Angemessenheitsgrenze ohne schlüssiges Konzept",
         annotation_position="top left",
+        annotation_font_size=PROJECTED_ANNOTATION_FONT_SIZE,
     )
     figure.update_layout(
-        title=(
-            "Local KdU caps depart from the Wohngeld-based benchmark in both directions"
-        ),
         showlegend=False,
         boxgap=0.4,
+        font_size=PROJECTED_BODY_FONT_SIZE,
     )
-    figure.update_yaxes(tickformat=".2f")
+    figure.update_xaxes(
+        tickfont_size=PROJECTED_BODY_FONT_SIZE,
+        title_font_size=PROJECTED_AXIS_TITLE_FONT_SIZE,
+    )
+    figure.update_yaxes(
+        tickformat=".2f",
+        tickfont_size=PROJECTED_BODY_FONT_SIZE,
+        title_font_size=PROJECTED_AXIS_TITLE_FONT_SIZE,
+    )
     return figure
 
 
 def plot_cap_difference_distribution(frame: pd.DataFrame) -> go.Figure:
-    """Draw the one-person euro departure from the Wohngeld-based benchmark.
+    """Draw the one-person euro departure from the Grenze ohne schlüssiges Konzept.
 
     The figure is the euro counterpart of the summary
     {func}`summarise_cap_difference_eur` writes: the same measure, the same
@@ -586,11 +601,12 @@ def plot_cap_difference_distribution(frame: pd.DataFrame) -> go.Figure:
     Returns:
         A histogram of `cap_difference_eur` at household size one under one
         Gemeinde one weight. The tenth, fiftieth and ninetieth percentile are
-        drawn and labelled, the benchmark is marked at zero by a heavier dashed
-        line, and the Gemeinden sitting on the benchmark are counted beside it.
-        Every label sits in a band of empty space above the tallest bar. The
-        title states the estimand, the unit, the weighting and the number of
-        Gemeinden, the last read from `frame` rather than fixed.
+        drawn and labelled, the Grenze ohne schlüssiges Konzept is marked at
+        zero by a heavier dashed line, and the Gemeinden sitting on it are
+        counted beside that line. Every label sits in a band of empty space
+        above the tallest bar. The axis titles carry the estimand, the unit,
+        the weighting and the number of Gemeinden, the last read from `frame`
+        rather than fixed.
 
     """
     _fail_if_columns_absent(frame, ("household_size", "cap_difference_eur"))
@@ -601,7 +617,12 @@ def plot_cap_difference_distribution(frame: pd.DataFrame) -> go.Figure:
         x="cap_difference_eur",
         nbins=DIFFERENCE_HISTOGRAM_BINS,
         color_discrete_sequence=[ACCENT_COLOUR],
-        labels={"cap_difference_eur": "EUR per month"},
+        labels={
+            "cap_difference_eur": (
+                "Local one-person KdU cap minus Grenze ohne schlüssiges Konzept, "
+                "EUR per month"
+            ),
+        },
     )
     _mark_deciles(figure, values)
     figure.add_vline(
@@ -612,19 +633,14 @@ def plot_cap_difference_distribution(frame: pd.DataFrame) -> go.Figure:
     )
     _annotate_benchmark(figure, count_gemeinden_at_benchmark(frame))
     figure.update_layout(
-        title=(
-            "Local one-person KdU cap minus Wohngeld-based benchmark — "
-            "EUR per month; one Gemeinde one weight; "
-            f"n = {len(differences):,}"
-        ),
-        yaxis_title="Gemeinden",
+        yaxis_title=(f"Gemeinden (one Gemeinde one weight; n = {len(differences):,})"),
         showlegend=False,
         bargap=0.05,
         font_size=PROJECTED_BODY_FONT_SIZE,
-        title_font_size=PROJECTED_TITLE_FONT_SIZE,
     )
     figure.update_xaxes(
         tickfont_size=PROJECTED_BODY_FONT_SIZE,
+        title_font_size=PROJECTED_AXIS_TITLE_FONT_SIZE,
         ticksuffix=" €",
         range=[
             values.min() - DIFFERENCE_AXIS_PADDING_EUR,
@@ -633,6 +649,7 @@ def plot_cap_difference_distribution(frame: pd.DataFrame) -> go.Figure:
     )
     figure.update_yaxes(
         tickfont_size=PROJECTED_BODY_FONT_SIZE,
+        title_font_size=PROJECTED_AXIS_TITLE_FONT_SIZE,
         range=[0.0, _tallest_bar(values) * DIFFERENCE_HEADROOM_FACTOR],
     )
     return figure
@@ -655,7 +672,8 @@ def plot_cap_ratio_spread_distribution(spread: pd.DataFrame) -> go.Figure:
         color_discrete_sequence=[ACCENT_COLOUR],
         labels={
             "cap_ratio_spread": (
-                "Largest minus smallest cap ratio over household sizes 1 to 4"
+                "Largest minus smallest ratio of local cap to Grenze ohne "
+                "schlüssiges Konzept,<br>over household sizes 1 to 4"
             ),
         },
     )
@@ -665,16 +683,22 @@ def plot_cap_ratio_spread_distribution(spread: pd.DataFrame) -> go.Figure:
         line_color=NEUTRAL_COLOUR,
         annotation_text=f"{MATERIAL_SPREAD_THRESHOLD:.2f} ratio points",
         annotation_position="top right",
+        annotation_font_size=PROJECTED_ANNOTATION_FONT_SIZE,
     )
     figure.update_layout(
-        title=(
-            "Within one Gemeinde the departure from the fallback moves with "
-            "household size"
-        ),
         yaxis_title="Share of Gemeinden at or below",
         showlegend=False,
+        font_size=PROJECTED_BODY_FONT_SIZE,
     )
-    figure.update_xaxes(range=[0, 0.3])
+    figure.update_xaxes(
+        range=[0, 0.3],
+        tickfont_size=PROJECTED_BODY_FONT_SIZE,
+        title_font_size=PROJECTED_AXIS_TITLE_FONT_SIZE,
+    )
+    figure.update_yaxes(
+        tickfont_size=PROJECTED_BODY_FONT_SIZE,
+        title_font_size=PROJECTED_AXIS_TITLE_FONT_SIZE,
+    )
     return figure
 
 
@@ -711,12 +735,12 @@ def _mark_deciles(figure: go.Figure, differences: pd.Series) -> None:
 
 
 def _annotate_benchmark(figure: go.Figure, point_mass: BenchmarkPointMass) -> None:
-    """Name the benchmark line and count the Gemeinden that sit on it."""
+    """Name the reference line and count the Gemeinden that sit on it."""
     _add_label(
         figure,
         x=0.0,
         y=BENCHMARK_LABEL_HEIGHT,
-        text="Wohngeld-based benchmark",
+        text="Angemessenheitsgrenze ohne schlüssiges Konzept",
         side="right",
     )
     gemeinde_word = "Gemeinde" if point_mass.count == 1 else "Gemeinden"
@@ -726,7 +750,7 @@ def _annotate_benchmark(figure: go.Figure, point_mass: BenchmarkPointMass) -> No
         y=POINT_MASS_LABEL_HEIGHT,
         text=(
             f"{point_mass.count:,} {gemeinde_word} "
-            f"({point_mass.share:.1%}) exactly at the benchmark"
+            f"({point_mass.share:.1%}) exactly on that Grenze"
         ),
         side="right",
     )

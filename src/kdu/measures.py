@@ -47,8 +47,8 @@ class MeasureSpec:
     """Whether a Härtefallzuschlag would raise this value.
 
     Selects the hatch overlay and the Sicherheitszuschlag footnote. False for the
-    Mietenstufe, the Wohngeld-Höchstbeträge and the Wohnflächen, none of which a
-    rent surcharge changes.
+    Mietenstufe, the Grenze ohne schlüssiges Konzept and the Wohnflächen, none of
+    which a rent surcharge changes.
     """
 
 
@@ -105,26 +105,28 @@ MEASURES: tuple[MeasureSpec, ...] = (
     MeasureSpec(
         key="wohngeld_fallback_cap",
         column="wohngeld_fallback_cap",
-        label=(
-            "Wohngeld-Obergrenze (Höchstbetrag und Klimakomponente, plus zehn Prozent)"
-        ),
+        label="Grenze ohne schlüssiges Konzept",
         unit="€/Monat",
         hover_format=",.0f",
-        headline=(
-            "Wohngeld-Höchstbetrag und Klimakomponente zuzüglich Sicherheitszuschlag"
-        ),
+        headline="Angemessenheitsgrenze ohne schlüssiges Konzept",
         context=f"{_WOHNGELD_BASIS} · Euro je Monat",
     ),
     MeasureSpec(
         key="cap_ratio",
         column="cap_ratio",
-        label="Örtliche Mietobergrenze im Verhältnis zur Wohngeld-Obergrenze",
+        label=(
+            "Örtliche Mietobergrenze im Verhältnis zur Grenze ohne schlüssiges Konzept"
+        ),
         unit="",
         hover_format=",.2f",
-        headline=("Örtliche Mietobergrenze im Verhältnis zur Wohngeld-Obergrenze"),
+        headline=(
+            "Örtliche Mietobergrenze im Verhältnis zur Angemessenheitsgrenze "
+            "ohne schlüssiges Konzept"
+        ),
         context=(
-            "1,00 = die örtliche Obergrenze entspricht dem Wohngeld-Höchstbetrag "
-            "samt Klimakomponente zuzüglich zehn Prozent · größer als 1,00 = "
+            "1,00 = die örtliche Obergrenze entspricht der Angemessenheitsgrenze "
+            "ohne schlüssiges Konzept, dem Wohngeld-Höchstbetrag samt "
+            "Klimakomponente zuzüglich zehn Prozent · größer als 1,00 = "
             "örtlich wird mehr anerkannt"
         ),
         diverging_midpoint=1.0,

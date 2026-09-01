@@ -15,7 +15,7 @@ from kdu.config import (
 from kdu.figure_export import write_presentation_png
 from kdu.final.map_controls import build_control_script
 from kdu.geodata import load_geojson
-from kdu.maps import build_choropleth, build_map_frame
+from kdu.maps import build_choropleth, build_map_frame, build_presentation_map
 from kdu.measures import MEASURES, MeasureSpec, get_measure
 
 # The measure and household size the map opens on.
@@ -106,7 +106,9 @@ def _write_map(
             unless several are offered, in which case `INITIAL_MEASURE` is.
         vintage: Range of document effective dates shown in the subtitle.
         png_path: Where to also write a static image for the presentation, or
-            `None` for a map the deck does not show.
+            `None` for a map the deck does not show. The image is framed for a
+            slide by {func}`kdu.maps.build_presentation_map`; the HTML file
+            keeps the screen view.
 
     """
     initial_measure = get_measure(INITIAL_MEASURE) if len(measures) > 1 else measures[0]
@@ -128,7 +130,7 @@ def _write_map(
     )
     figure.write_html(path, include_plotlyjs=PLOTLY_SOURCE, post_script=script)
     if png_path is not None:
-        write_presentation_png(figure, png_path)
+        write_presentation_png(build_presentation_map(figure), png_path)
 
 
 def _describe_vintage(valid_from: pd.Series) -> str:

@@ -64,3 +64,6 @@ src/*/_version.py
 
 # Working notes, deliberately not versioned
 notes/
+
+# Exported by the export-pres task; regenerate rather than commit.
+documents/presentation.pdf

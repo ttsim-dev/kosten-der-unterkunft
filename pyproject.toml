@@ -68,7 +68,11 @@ fetch-wohnkostenstatistik = "python scripts/fetch_ba_wohnkosten.py"
 fetch-zensus-mieten = "python scripts/fetch_zensus_mieten.py"
 pytask = "pytask"
 view-pres = { cmd = "npx slidev documents/presentation.md", description = "View the presentation in the browser" }
-export-pres = { cmd = "npx slidev export documents/presentation.md --output documents/presentation.pdf", description = "Export the presentation to PDF" }
+# `--per-slide` renders one slide per browser page. Without it the deck's map
+# renderings — three PNGs of a few megabytes each — are dropped from all but one
+# slide, which then exports blank, heading included. The deck has no cross-slide
+# links, which is the only thing `--per-slide` gives up.
+export-pres = { cmd = "npx slidev export documents/presentation.md --output documents/presentation.pdf --per-slide", description = "Export the presentation to PDF" }
 [tool.pixi.workspace]
 channels = [ "conda-forge" ]
 platforms = [ "linux-64", "osx-64", "osx-arm64", "win-64" ]

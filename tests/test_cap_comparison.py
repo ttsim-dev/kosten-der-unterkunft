@@ -1,4 +1,4 @@
-"""Tests for the departure of local KdU caps from the Wohngeld-based benchmark."""
+"""Tests for how far local KdU caps depart from the Grenze ohne schlüssiges Konzept."""
 
 import numpy as np
 import pandas as pd
@@ -94,7 +94,7 @@ def test_build_cap_comparison_leaves_the_ratio_missing_without_a_fallback(
     fallback: pd.DataFrame,
     gemeinden: pd.DataFrame,
 ) -> None:
-    """A Gemeinde without a Mietenstufe has no benchmark and so no ratio."""
+    """No Mietenstufe means no Grenze ohne schlüssiges Konzept and so no ratio."""
     frame = build_cap_comparison(caps, fallback, gemeinden)
     row = frame.query("ags == '01002000' and household_size == 2").iloc[0]
     assert pd.isna(row["cap_ratio"])
@@ -282,7 +282,7 @@ def test_extreme_allocation_conserves_the_kreis_stock(
     assert total == pytest.approx(1000.0)
 
 
-def test_lowest_departure_allocation_picks_the_gemeinde_furthest_below_benchmark(
+def test_lowest_departure_allocation_picks_the_least_favourable_gemeinde(
     caps: pd.DataFrame,
     fallback: pd.DataFrame,
     gemeinden: pd.DataFrame,
@@ -296,7 +296,7 @@ def test_lowest_departure_allocation_picks_the_gemeinde_furthest_below_benchmark
     assert row[scheme] == pytest.approx(1000.0)
 
 
-def test_highest_departure_allocation_picks_the_gemeinde_furthest_above_benchmark(
+def test_highest_departure_allocation_picks_the_most_favourable_gemeinde(
     caps: pd.DataFrame,
     fallback: pd.DataFrame,
     gemeinden: pd.DataFrame,
@@ -374,10 +374,10 @@ def test_plot_cap_difference_distribution_reads_its_count_from_the_data(
     fallback: pd.DataFrame,
     gemeinden: pd.DataFrame,
 ) -> None:
-    """Two Gemeinden compared at household size one make the title say `n = 2`."""
+    """Two Gemeinden compared at household size one make the axis say `n = 2`."""
     frame = build_cap_comparison(caps, fallback, gemeinden)
     figure = plot_cap_difference_distribution(frame)
-    assert "n = 2" in figure.layout.title.text
+    assert "n = 2" in figure.layout.yaxis.title.text
 
 
 def _difference_frame(differences: list[float]) -> pd.DataFrame:
@@ -392,7 +392,7 @@ def _difference_frame(differences: list[float]) -> pd.DataFrame:
 
 
 def _figure_with_deciles_away_from_zero() -> go.Figure:
-    """A figure whose three deciles all fall left of the benchmark line."""
+    """A figure whose three deciles all fall left of the reference line."""
     return plot_cap_difference_distribution(
         _difference_frame([-90.0, -60.0, -40.0, -25.0, -10.0]),
     )
@@ -404,14 +404,14 @@ def test_plot_cap_difference_distribution_draws_three_decile_lines() -> None:
     assert sum(shape.line.dash == "dot" for shape in figure.layout.shapes) == 3
 
 
-def test_plot_cap_difference_distribution_keeps_the_benchmark_line_dashed() -> None:
+def test_plot_cap_difference_distribution_keeps_the_reference_line_dashed() -> None:
     """The zero reference line is dashed, so it never reads as a decile line."""
     figure = _figure_with_deciles_away_from_zero()
     benchmark = [shape for shape in figure.layout.shapes if shape.x0 == 0.0]
     assert [shape.line.dash for shape in benchmark] == ["dash"]
 
 
-def test_plot_cap_difference_distribution_draws_the_benchmark_line_heavier() -> None:
+def test_plot_cap_difference_distribution_draws_the_reference_line_heavier() -> None:
     """The zero reference line is wider than the decile lines beside it."""
     figure = _figure_with_deciles_away_from_zero()
     widths = {shape.line.dash: shape.line.width for shape in figure.layout.shapes}
@@ -426,17 +426,17 @@ def test_plot_cap_difference_distribution_draws_the_benchmark_line_heavier() -> 
         ([0.0, 0.0, 0.0, 12.0], 3),
     ],
 )
-def test_count_gemeinden_at_benchmark_counts_the_gemeinden_on_the_benchmark(
+def test_count_gemeinden_at_benchmark_counts_the_gemeinden_with_no_departure(
     differences: list[float],
     expected: int,
 ) -> None:
-    """A Gemeinde is at the benchmark when its euro departure is zero."""
+    """A Gemeinde is on the Grenze ohne schlüssiges Konzept at a departure of zero."""
     point_mass = count_gemeinden_at_benchmark(_difference_frame(differences))
     assert point_mass.count == expected
 
 
 def test_count_gemeinden_at_benchmark_reports_the_share_of_those_compared() -> None:
-    """One of four Gemeinden at the benchmark is a share of 0.25."""
+    """One of four Gemeinden on the Grenze ohne schlüssiges Konzept is 0.25."""
     point_mass = count_gemeinden_at_benchmark(
         _difference_frame([0.0, 10.0, -5.0, 3.0]),
     )
@@ -472,7 +472,7 @@ def test_plot_cap_difference_distribution_annotates_the_point_mass(
     fallback: pd.DataFrame,
     gemeinden: pd.DataFrame,
 ) -> None:
-    """The Gemeinden sitting exactly on the benchmark are named on the figure."""
+    """Gemeinden exactly on the Grenze ohne schlüssiges Konzept are named."""
     at_benchmark = caps.assign(
         kdu_cap=[400.0, 600.0, 400.0, 480.0],
     )
@@ -482,15 +482,17 @@ def test_plot_cap_difference_distribution_annotates_the_point_mass(
     assert any("1 Gemeinde" in text for text in texts)
 
 
-def test_plot_cap_difference_distribution_drops_the_redundant_axis_title(
+def test_plot_cap_difference_distribution_names_the_estimand_on_the_axis(
     caps: pd.DataFrame,
     fallback: pd.DataFrame,
     gemeinden: pd.DataFrame,
 ) -> None:
-    """The figure title already carries the estimand, so the axis states the unit."""
+    """The figure carries no title, so the axis states the estimand and its unit."""
     frame = build_cap_comparison(caps, fallback, gemeinden)
     figure = plot_cap_difference_distribution(frame)
-    assert figure.layout.xaxis.title.text == "EUR per month"
+    assert figure.layout.xaxis.title.text == (
+        "Local one-person KdU cap minus Grenze ohne schlüssiges Konzept, EUR per month"
+    )
 
 
 _BUILT_TABLES = tuple(

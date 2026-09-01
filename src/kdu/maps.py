@@ -7,12 +7,14 @@ which household size the measure layer shows is set by the controls built in
 {mod}`kdu.final.map_controls`.
 """
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
 import plotly.graph_objects as go
 
+from kdu.figure_export import PRESENTATION_HEIGHT_PIXELS, PRESENTATION_WIDTH_PIXELS
 from kdu.hatching import build_hatch_geojson
 from kdu.measures import MEASURES, MeasureSpec, compute_colour_range
 
@@ -29,14 +31,61 @@ HAERTEFALL_NOTE = (
     "Schraffur: eigene Härtefallregelung (Berlin: zehn Prozent, nicht enthalten)"
 )
 SICHERHEITSZUSCHLAG_NOTE = (
-    "Ohne schlüssiges Konzept gilt der Wohngeld-Höchstbetrag samt Klimakomponente "
-    "(§ 12 Absatz 7 Wohngeldgesetz) zuzüglich zehn Prozent Sicherheitszuschlag "
-    "(Bundessozialgericht B 4 AS 87/12 R; die Einbeziehung der Klimakomponente "
-    "folgt der einhelligen Instanzrechtsprechung und ist bundessozialgerichtlich "
-    "nicht geklärt)"
+    "Angemessenheitsgrenze ohne schlüssiges Konzept: Wohngeld-Höchstbetrag samt "
+    "Klimakomponente (§ 12 Absatz 7 Wohngeldgesetz) zuzüglich zehn Prozent "
+    "Sicherheitszuschlag (Bundessozialgericht B 4 AS 87/12 R; die Einbeziehung "
+    "der Klimakomponente folgt der einhelligen Instanzrechtsprechung und ist "
+    "bundessozialgerichtlich nicht geklärt)"
 )
 
 GEMEINDEFREIES_GEBIET = "Gemeindefreies Gebiet"
+
+# Type size of the footnote block on screen.
+FOOTNOTE_FONT_SIZE = 14
+
+# Type sizes of the static image, which is read from across a lecture room
+# rather than from a desk.
+PRESENTATION_FOOTNOTE_FONT_SIZE = 22
+PRESENTATION_COLOURBAR_FONT_SIZE = 26
+
+# Width kept free at the right edge of the static image for the colour bar and
+# its tick labels, in pixels of the rendered image.
+PRESENTATION_COLOURBAR_WIDTH_PIXELS = 220
+
+# Where the colour bar stands in that reserved width, as a share of the whole
+# image, and how large it is. Measured against the image rather than against the
+# plot area, so that the tick labels to its right stay inside the image.
+PRESENTATION_COLOURBAR_POSITION = 0.87
+PRESENTATION_COLOURBAR_THICKNESS_PIXELS = 26
+PRESENTATION_COLOURBAR_LENGTH = 0.9
+
+# Share of the static image's shorter fitted dimension left empty around
+# Germany, so the coastline does not touch the edge.
+PRESENTATION_MARGIN_FRACTION = 0.04
+
+# A MapLibre tile is 512 pixels square, so the whole world spans 512 times two
+# to the zoom.
+MAP_TILE_SIZE_PIXELS = 512
+
+
+@dataclass(frozen=True)
+class GeographicBounds:
+    """A box in degrees of longitude and latitude."""
+
+    west: float
+    """Western edge, in degrees of longitude."""
+    east: float
+    """Eastern edge, in degrees of longitude."""
+    south: float
+    """Southern edge, in degrees of latitude."""
+    north: float
+    """Northern edge, in degrees of latitude."""
+
+
+# The extreme points of Germany: Selfkant in the west, Neißeaue in the east,
+# the Haldenwanger Eck in the south and List auf Sylt in the north, each rounded
+# outwards so that no Gemeinde falls outside the box.
+GERMANY_BOUNDS = GeographicBounds(west=5.86, east=15.05, south=47.26, north=55.07)
 
 # The market rent comparison names the share above the local cap this, as a
 # fraction of the rented stock.
@@ -73,7 +122,8 @@ def build_map_frame(
         geojson: Gemeinde feature collection whose features carry `fid` and
             `gem_code`.
         kdu_caps: Local caps keyed `ags` by `household_size`.
-        wohngeld_fallback: Statutory benchmark keyed `ags` by `household_size`.
+        wohngeld_fallback: The Angemessenheitsgrenze ohne schlüssiges Konzept,
+            keyed `ags` by `household_size`.
         gemeinden: Gemeinde attributes keyed `ags`.
         gemeinde_types: Frame with `ags` and `gem_type`, marking the
             gemeindefreie Gebiete no KdU document applies to.
@@ -239,6 +289,126 @@ def build_choropleth(
     return figure
 
 
+@dataclass(frozen=True)
+class MapView:
+    """Where a map is centred and how far it is zoomed in."""
+
+    center_latitude: float
+    """Latitude of the centre, in degrees."""
+    center_longitude: float
+    """Longitude of the centre, in degrees."""
+    zoom: float
+    """MapLibre zoom level, at which the world spans 512 times two to the zoom."""
+
+
+def build_presentation_map(
+    figure: go.Figure,
+    *,
+    width_pixels: int = PRESENTATION_WIDTH_PIXELS,
+    height_pixels: int = PRESENTATION_HEIGHT_PIXELS,
+) -> go.Figure:
+    """Return a copy of a choropleth framed and set for a slide.
+
+    A slide carries its own heading and its own prose, so the image shows the
+    country and the colour bar alone: the title goes, the case law goes with it,
+    what remains is set large, and the view is fitted to Germany so the country
+    fills the image instead of sitting inside a ring of neighbours.
+
+    Args:
+        figure: The screen figure, as {func}`build_choropleth` builds it. It is
+            not modified.
+        width_pixels: Width the image is rendered at.
+        height_pixels: Height the image is rendered at.
+
+    Returns:
+        A separate figure carrying the presentation view.
+
+    """
+    view = compute_map_view(
+        bounds=GERMANY_BOUNDS,
+        width_pixels=width_pixels - PRESENTATION_COLOURBAR_WIDTH_PIXELS,
+        height_pixels=height_pixels,
+        margin_fraction=PRESENTATION_MARGIN_FRACTION,
+    )
+    presentation = go.Figure(figure.to_dict())
+    presentation.update_layout(
+        title={"text": ""},
+        map={
+            "center": {
+                "lat": view.center_latitude,
+                "lon": view.center_longitude,
+            },
+            "zoom": view.zoom,
+        },
+        margin={"r": PRESENTATION_COLOURBAR_WIDTH_PIXELS, "t": 0, "l": 0, "b": 0},
+        annotations=_build_presentation_footnotes(figure.layout.annotations),
+    )
+    presentation.update_traces(
+        colorbar={
+            "tickfont": {"size": PRESENTATION_COLOURBAR_FONT_SIZE},
+            "title": {"font": {"size": PRESENTATION_COLOURBAR_FONT_SIZE}},
+            "xref": "container",
+            "x": PRESENTATION_COLOURBAR_POSITION,
+            "xanchor": "left",
+            "thickness": PRESENTATION_COLOURBAR_THICKNESS_PIXELS,
+            "len": PRESENTATION_COLOURBAR_LENGTH,
+        },
+    )
+    return presentation
+
+
+def compute_map_view(
+    *,
+    bounds: GeographicBounds,
+    width_pixels: float,
+    height_pixels: float,
+    margin_fraction: float,
+) -> MapView:
+    """Return the view at which a box exactly fits inside a frame.
+
+    Zoom is the larger of the two the box would need in each direction, so the
+    dimension that binds fills the frame less the margin and the other one is
+    contained. The centre is the midpoint of the box in the Web Mercator plane
+    rather than in degrees, because that is the point the projection puts in the
+    middle of the rendered image.
+
+    Args:
+        bounds: The box to frame.
+        width_pixels: Width of the frame the box is fitted into.
+        height_pixels: Height of the frame the box is fitted into.
+        margin_fraction: Share of the frame left empty around the box.
+
+    Returns:
+        The centre and zoom that frame the box.
+
+    Raises:
+        ValueError: If the box has no extent in either direction.
+
+    """
+    _fail_if_bounds_are_degenerate(bounds)
+    longitude_share_of_world = (bounds.east - bounds.west) / 360
+    south = _mercator_ordinate(bounds.south)
+    north = _mercator_ordinate(bounds.north)
+    latitude_share_of_world = (north - south) / (2 * math.pi)
+    zoom = min(
+        math.log2(
+            width_pixels
+            * (1 - margin_fraction)
+            / (MAP_TILE_SIZE_PIXELS * longitude_share_of_world),
+        ),
+        math.log2(
+            height_pixels
+            * (1 - margin_fraction)
+            / (MAP_TILE_SIZE_PIXELS * latitude_share_of_world),
+        ),
+    )
+    return MapView(
+        center_latitude=_inverse_mercator_ordinate(0.5 * (south + north)),
+        center_longitude=0.5 * (bounds.west + bounds.east),
+        zoom=zoom,
+    )
+
+
 def build_hatch_layers(
     *,
     geojson: dict[str, Any],
@@ -277,8 +447,9 @@ def build_footnotes(
     Two separate surcharges of ten percent bear on a KdU cap and neither is
     legible from the number alone:
 
-    - the Sicherheitszuschlag on the Wohngeldtabelle and its Klimakomponente,
-      already inside the Richtwerte of the Kreise without a schlüssiges Konzept
+    - the Sicherheitszuschlag that makes the Angemessenheitsgrenze ohne
+      schlüssiges Konzept, already inside the Richtwerte of the Kreise that
+      publish no schlüssiges Konzept
     - Berlin's Härtefallzuschlag, which is not included and marks the hatching
     """
     lines = []
@@ -300,7 +471,7 @@ def build_footnotes(
             "showarrow": False,
             "align": "left",
             "bgcolor": "rgba(255, 255, 255, 0.8)",
-            "font": {"size": 10},
+            "font": {"size": FOOTNOTE_FONT_SIZE},
         },
     ]
 
@@ -381,6 +552,61 @@ def count_covered_gemeinden(view: pd.DataFrame, spec: MeasureSpec) -> tuple[int,
     )
 
 
+def _build_presentation_footnotes(
+    annotations: tuple[Any, ...],
+) -> list[dict[str, Any]]:
+    """Keep the footnote lines that can be set legibly at slide scale.
+
+    The Sicherheitszuschlag note is a sentence of case law: at a size readable
+    from the back of a room it would take several lines across the country it
+    captions. It stays in the interactive map, which is read on a screen. The
+    Härtefall note is one line and keys a mark visible in the image, so it stays
+    and is enlarged with everything else.
+    """
+    kept = []
+    for annotation in annotations:
+        lines = [
+            line
+            for line in (annotation.text or "").split("<br>")
+            if line != SICHERHEITSZUSCHLAG_NOTE
+        ]
+        if not lines:
+            continue
+        specification = annotation.to_plotly_json()
+        specification["text"] = "<br>".join(lines)
+        specification["font"] = {
+            **(specification.get("font") or {}),
+            "size": PRESENTATION_FOOTNOTE_FONT_SIZE,
+        }
+        kept.append(specification)
+    return kept
+
+
+def _mercator_ordinate(latitude: float) -> float:
+    """Return the Web Mercator ordinate of a latitude, in radians of the sphere."""
+    return math.log(math.tan(math.pi / 4 + math.radians(latitude) / 2))
+
+
+def _inverse_mercator_ordinate(ordinate: float) -> float:
+    """Return the latitude in degrees whose Web Mercator ordinate is `ordinate`."""
+    return math.degrees(2 * math.atan(math.exp(ordinate)) - math.pi / 2)
+
+
+def _fail_if_bounds_are_degenerate(bounds: GeographicBounds) -> None:
+    if bounds.east <= bounds.west:
+        msg = (
+            f"A box needs an east-west extent to be framed; west is "
+            f"{bounds.west} and east is {bounds.east}"
+        )
+        raise ValueError(msg)
+    if bounds.north <= bounds.south:
+        msg = (
+            f"A box needs a north-south extent to be framed; south is "
+            f"{bounds.south} and north is {bounds.north}"
+        )
+        raise ValueError(msg)
+
+
 def _select_household_size(
     *,
     frame: pd.DataFrame,
@@ -421,11 +647,11 @@ def _join_measure_tables(
         :,
         [*keys, "kdu_cap", "max_area_sqm", HAERTEFALL_COLUMN],
     ]
-    benchmark = wohngeld_fallback.loc[
+    fallback = wohngeld_fallback.loc[
         :,
         [*keys, "mietenstufe", "wohngeld_fallback_cap"],
     ]
-    joined = _merge_without_duplicating(caps, benchmark, on=keys)
+    joined = _merge_without_duplicating(caps, fallback, on=keys)
 
     measures = joined.loc[:, keys].copy()
     measures["mietenstufe"] = pd.to_numeric(joined["mietenstufe"], errors="coerce")

@@ -1,4 +1,4 @@
-"""Write the statutory benchmark each local KdU cap is measured against."""
+"""Write the Grenze ohne schlüssiges Konzept for every Gemeinde and size."""
 
 from pathlib import Path
 from typing import Annotated

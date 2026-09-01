@@ -9,7 +9,8 @@ This module exports:
 - paths — `SRC`, `ROOT`, `DATA`, `BLD`, the per-package result directories,
   and `corpus_root`
 - vintages — `ANALYSIS_DATE` and `LEGAL_VINTAGE`
-- the benchmark — `WOHNGELD_FALLBACK_MARKUP`
+- the Angemessenheitsgrenze ohne schlüssiges Konzept —
+  `WOHNGELD_FALLBACK_MARKUP`
 - populations of interest — `HOUSEHOLD_SIZES` and `MODEL_HOUSEHOLDS`
 - analysis parameters — `INCOME_GRID`, `WeightingScheme`
 - `DATA_CATALOG` — every committed input and every generated artefact
@@ -95,8 +96,8 @@ class LegalVintage:
 # The one vintage the whole project is computed at. The two WoGG dates differ
 # because Anlage 1 was last fortgeschrieben in 2025 while the Klimakomponente
 # and the Heizkostenentlastung still carry their Wohngeld-Plus wording of 2023;
-# both are the Fassung in force on the Analysestichtag, so the benchmark rests
-# on one consistent Rechtsstand.
+# both are the Fassung in force on the Analysestichtag, so the Grenze ohne
+# schlüssiges Konzept rests on one consistent Rechtsstand.
 LEGAL_VINTAGE = LegalVintage(
     wohngeld_rechtsstand=2026,
     sgb_rechtsstand=2026,
@@ -113,7 +114,8 @@ HOUSEHOLD_SIZES: tuple[int, ...] = (1, 2, 3, 4, 5)
 MIETENSTUFEN: tuple[int, ...] = (1, 2, 3, 4, 5, 6, 7)
 
 # The markup applied to the sum of the Anlage 1 Höchstbetrag and the
-# Klimakomponente, which together define the project's benchmark.
+# Klimakomponente, which together define the Angemessenheitsgrenze ohne
+# schlüssiges Konzept.
 #
 # Where a Kreis publishes no schlüssiges Konzept, the Angemessenheitsgrenze is
 # the Wohngeld table plus a Sicherheitszuschlag of 10 % (BSG, 12.12.2013 -
@@ -295,23 +297,24 @@ class WeightingScheme(StrEnum):
     BEDARFSGEMEINSCHAFT_ALLOCATED_TO_LOWEST_DEPARTURE = (
         "n_bedarfsgemeinschaften_allocated_to_lowest_departure"
     )
-    """The whole Kreis caseload placed on the Gemeinde furthest below the benchmark.
+    """The whole Kreis caseload placed on the least favourable Gemeinde.
 
     The lower end of the bracket around
     `BEDARFSGEMEINSCHAFT_ALLOCATED_BY_POPULATION`: it assumes every claimant of
     a Kreis lives where that Kreis's cap departs least favourably from the
-    Wohngeld-based benchmark. No placement of the published Kreis stock across
-    that Kreis's Gemeinden produces a lower mean departure. Gemeinden tied at
+    Angemessenheitsgrenze ohne schlüssiges Konzept. No placement of the
+    published Kreis stock across that Kreis's Gemeinden produces a lower mean
+    departure. Gemeinden tied at
     that departure share the stock equally.
     """
     BEDARFSGEMEINSCHAFT_ALLOCATED_TO_HIGHEST_DEPARTURE = (
         "n_bedarfsgemeinschaften_allocated_to_highest_departure"
     )
-    """The whole Kreis caseload placed on the Gemeinde furthest above the benchmark.
+    """The whole Kreis caseload placed on the most favourable Gemeinde.
 
     The upper end of the same bracket, assuming every claimant of a Kreis lives
-    where that Kreis's cap departs most favourably from the Wohngeld-based
-    benchmark. Gemeinden tied at that departure share the stock equally.
+    where that Kreis's cap departs most favourably from the Grenze ohne
+    schlüssiges Konzept. Gemeinden tied at that departure share the stock equally.
     """
 
 
@@ -396,8 +399,8 @@ PRESENTATION_MAP_MEASURES: tuple[str, ...] = (
     "cap_ratio",
 )
 
-# How far a local cap departs from the Wohngeld-based benchmark, and how much
-# variation the Mietenstufe leaves unaccounted for.
+# How far a local cap departs from the Grenze ohne schlüssiges Konzept, and
+# how much variation the Mietenstufe leaves unaccounted for.
 DATA_CATALOG.add(
     "cap_comparison_distribution",
     KDU_VS_WOHNGELD / "cap_comparison_distribution.html",

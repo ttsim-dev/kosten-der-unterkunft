@@ -1,4 +1,4 @@
-"""The statutory benchmark each local KdU cap is measured against."""
+"""The Grenze ohne schlüssiges Konzept each local KdU cap is measured against."""
 
 from types import MappingProxyType
 
@@ -51,7 +51,7 @@ def test_fallback_cap_adds_the_klimakomponente_before_the_ten_percent() -> None:
 
 
 def test_klimakomponente_is_carried_alongside_the_hoechstbetrag() -> None:
-    """The two parts of the benchmark stay separately readable in the table."""
+    """The two parts of the Grenze ohne schlüssiges Konzept stay readable apart."""
     result = build_wohngeld_fallback(_mietenstufen(), _parameters())
     row = result.query("ags == '01001000' and household_size == 2")
     assert row["wohngeld_klimakomponente"].iloc[0] == pytest.approx(25.0)
@@ -64,7 +64,7 @@ def test_klimakomponente_does_not_vary_by_mietenstufe() -> None:
     assert set(at_size_one) == {20.0}
 
 
-def test_a_gemeinde_without_a_mietenstufe_keeps_its_rows_with_no_benchmark() -> None:
+def test_a_gemeinde_without_a_mietenstufe_keeps_its_rows_with_no_cap() -> None:
     """A gemeindefreies Gebiet has no statutory Mietenstufe and is never dropped."""
     mietenstufen = pd.DataFrame(
         {

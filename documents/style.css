@@ -53,6 +53,25 @@ table caption {
   caption-side: bottom;
 }
 
+/* Column alignment lives in the markdown, not here.
+ *
+ * The delimiter row of a GitHub-flavoured markdown table sets `text-align` inline on
+ * every `th` and `td` of that column, so header and cells always agree:
+ *
+ *   | Gemeinde | Cap in € |
+ *   |:---------|---------:|      <- left for text, right for a numeric column
+ *   | Bonn     |   543.00 |
+ *
+ * A numeric column is therefore marked with a trailing colon (`|---:|`) in the
+ * delimiter row of the page that owns the table. Because the resulting inline style
+ * loses to any `!important` declaration, the rules below leave `text-align` alone
+ * except for the default that applies when a table declares no alignment at all:
+ * left, matching the browser default for `td`. */
+table th,
+table td {
+  text-align: left;
+}
+
 table td {
   padding: 0.25em !important;
   padding-left: 1em !important;
@@ -61,7 +80,6 @@ table td {
 
 table th {
   font-weight: bold !important;
-  text-align: right !important;
   padding: 0.25em !important;
   padding-left: 1em !important;
   padding-right: 1em !important;

@@ -25,8 +25,8 @@ def write_presentation_png(figure: go.Figure, path: Path) -> None:
     The image is rendered at 1600 by 900 logical pixels — 16:9, the aspect of a
     Slidev slide — with a device pixel ratio of 2, giving a 3200 by 1800 file.
     Whatever template the figure resolves to is kept, so a figure built under
-    `plotly_dark` exports dark and sits on the deck's dark background without an
-    opaque white rectangle around it.
+    `plotly_white` exports light and sits on the deck's white slide without a
+    rectangle of its own around it.
 
     Args:
         figure: The figure to render. It is not modified.

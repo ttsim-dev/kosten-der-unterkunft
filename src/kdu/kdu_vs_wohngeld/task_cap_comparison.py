@@ -1,4 +1,4 @@
-"""Write the departure of local KdU caps from the Wohngeld-based benchmark."""
+"""Write the departure of local KdU caps from the Grenze ohne schlüssiges Konzept."""
 
 from pathlib import Path
 from typing import Annotated
@@ -48,7 +48,7 @@ def task_cap_comparison(
     ),
     table_file: Annotated[Path, Product] = catalog_path("cap_comparison_table"),
 ) -> None:
-    """Compare every local cap with its benchmark and write the results."""
+    """Compare every local cap with that Grenze and write the results."""
     gemeinden = pd.read_parquet(gemeinden_file)
     frame = build_cap_comparison(
         pd.read_parquet(caps_file),

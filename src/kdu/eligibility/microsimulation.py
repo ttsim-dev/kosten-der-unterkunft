@@ -1,9 +1,9 @@
 """The gross income at which a Modellhaushalt leaves the transfer system.
 
 Two scenarios differ in one number. One recognises the local KdU-Obergrenze as
-the Bruttokaltmiete cap, the other the Wohngeld fallback that BSG case law
-prescribes where a Kreis publishes no schlüssiges Konzept. Every other legal and
-economic parameter is identical.
+the Bruttokaltmiete cap, the other the Angemessenheitsgrenze ohne schlüssiges
+Konzept that BSG case law prescribes where a Kreis has published none. Every
+other legal and economic parameter is identical.
 
 At zero income the recognised rent enters the Bedarf one for one, so the
 difference in Anspruch between the two scenarios equals the difference between
@@ -30,10 +30,13 @@ This module exports:
   Wohnkostenstatistik of the Bundesagentur für Arbeit
 - `exit_threshold_by_gemeinde`, `summarise_exit_thresholds` and
   `plot_exit_threshold_distribution` — the reported results
+- `entitlement_profile` and `plot_entitlement_profile` — the same contrast drawn
+  out over income for a single named Gemeinde
 
 All amounts are euro per month.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cache
 from types import MappingProxyType
@@ -62,7 +65,7 @@ from kdu.eligibility.recognised_housing_costs import (
     unterkunftskosten_eur_per_month,
 )
 
-pio.templates.default = "plotly_dark"
+pio.templates.default = "plotly_white"
 
 # Number of adults in a couple household.
 N_ADULTS_IN_COUPLE = 2
@@ -98,6 +101,55 @@ PENSIONER_PFLICHTBEITRAGSMONATE = 540.0
 # Age at which the pensioner household is assumed to have retired.
 PENSIONER_RETIREMENT_AGE_YEARS = 65
 PENSIONER_RETIREMENT_MONTH = 11
+
+# The single Gemeinde and Modellhaushalt whose claim is drawn out over income.
+# Bad Homburg v.d.Höhe sits in Mietenstufe VII, where the Anlage 1 Höchstbetrag
+# is at its highest, so the gap between what the Richtlinie recognises and the
+# Angemessenheitsgrenze ohne schlüssiges Konzept is wide enough to read off a
+# slide.
+ENTITLEMENT_PROFILE_AGS = "06434001"
+ENTITLEMENT_PROFILE_HOUSEHOLD_KEY = "single_35"
+
+# Spacing of the income points the claim is drawn on, in euro per month. It is
+# finer than the ladder that brackets the exit threshold, because the line is
+# read by eye rather than bisected.
+ENTITLEMENT_PROFILE_INCOME_STEP_EUR = 20.0
+
+# How far past the later of the two zero crossings the income axis runs, and the
+# rounding the resulting ceiling is snapped to.
+ENTITLEMENT_PROFILE_HEADROOM = 1.12
+ENTITLEMENT_PROFILE_CEILING_ROUNDING_EUR = 50.0
+
+# Base font sizes. Every figure here is exported at 1600 by 900 pixels and read
+# from a projected slide, where Plotly's defaults are too small to resolve.
+FIGURE_FONT_SIZE = 20
+FIGURE_AXIS_TITLE_FONT_SIZE = 24
+FIGURE_ANNOTATION_FONT_SIZE = 20
+
+# Colours: the local cap is the subject and takes the accent, the
+# Angemessenheitsgrenze ohne schlüssiges Konzept is the reference and stays grey.
+LOCAL_CAP_COLOUR = "#c1350f"
+FALLBACK_COLOUR = "#5a6470"
+
+# Lines that annotate rather than carry data: the measuring bracket, the drop
+# lines down to it, the outline separating a crossing marker from the plot
+# ground, and the diagonal along which a euro of cap is a euro of income.
+ANNOTATION_LINE_COLOUR = "#4a4a4a"
+
+# A direct label sits this far above the line it names, as a share of the
+# highest claim drawn, so that a descending line does not run through its own
+# label. The label is backed by the plot ground for the same reason.
+LABEL_CLEARANCE_SHARE_OF_HIGHEST_CLAIM = 0.06
+ANNOTATION_BACKGROUND = "rgba(255, 255, 255, 0.85)"
+
+# The bracket measuring the distance between the two zero crossings is drawn
+# below the claim axis, and the sentence reading it below the bracket. Both
+# claims are non-negative everywhere, so nothing drawn under zero can cross a
+# line, whereas the region between the crossings is where the second claim is
+# still falling and is therefore occupied.
+MEASURING_BRACKET_DEPTH_SHARE_OF_HIGHEST_CLAIM = 0.10
+CLAIM_AXIS_FLOOR_SHARE_OF_HIGHEST_CLAIM = 0.34
+CLAIM_AXIS_TICK_STEP_EUR = 200.0
 
 # Every column `evaluate` expects on a case frame.
 CASE_COLUMNS: tuple[str, ...] = (
@@ -173,6 +225,47 @@ class HeatingAssumption:
         return self.per_household_size[size]
 
 
+@dataclass(frozen=True)
+class EntitlementProfile:
+    """The SGB claim over gross income under each cap, for one Gemeinde.
+
+    Every quantity here is that one Gemeinde's, and none of it is a summary over
+    Gemeinden. `amplification` in particular is this Gemeinde's own ratio and is
+    not the median that `summarise_exit_thresholds` reports; the two numbers
+    differ and must never be presented as the same one.
+    """
+
+    curves: pd.DataFrame
+    """Claim by `scenario` and `gross_income`, in euro per month."""
+    ags: str
+    """Eight-digit Gemeinde AGS the profile was evaluated for."""
+    household_key: str
+    """Key of the Modellhaushalt in `MODEL_HOUSEHOLDS`."""
+    local_cap: float
+    """The local KdU-Obergrenze on the Bruttokaltmiete, euro per month."""
+    wohngeld_fallback_cap: float
+    """The Angemessenheitsgrenze ohne schlüssiges Konzept, euro per month."""
+    exit_threshold_local_cap: float
+    """Gross income at which the claim reaches zero under the local cap."""
+    exit_threshold_fallback: float
+    """Gross income at which it reaches zero under the statutory grenze."""
+
+    @property
+    def rent_not_recognised(self) -> float:
+        """How much less rent the local cap recognises, euro per month."""
+        return self.wohngeld_fallback_cap - self.local_cap
+
+    @property
+    def exit_threshold_shift(self) -> float:
+        """How far the local cap moves the exit down, euro of gross income."""
+        return self.exit_threshold_fallback - self.exit_threshold_local_cap
+
+    @property
+    def amplification(self) -> float:
+        """This Gemeinde's ratio of the exit shift to the rent not recognised."""
+        return self.exit_threshold_shift / self.rent_not_recognised
+
+
 def distinct_cap_pairs(sample: pd.DataFrame, household_size: int) -> pd.DataFrame:
     """Reduce the Gemeinde sample to its distinct cap and Mietenstufe pairs.
 
@@ -184,11 +277,13 @@ def distinct_cap_pairs(sample: pd.DataFrame, household_size: int) -> pd.DataFram
     Gemeinde. At household size one it replaces about 9,350 evaluations with
     about 770.
 
-    Gemeinden without a statutory Mietenstufe carry no Wohngeld benchmark, so no
+    Gemeinden without a statutory Mietenstufe carry no Grenze ohne schlüssiges
+    Konzept, so no
     contrast is defined for them and they are dropped here rather than imputed.
 
     Args:
-        sample: The joined caps and fallback, keyed `ags` by `household_size`.
+        sample: The joined caps and the Grenze ohne schlüssiges Konzept, keyed
+            `ags` by `household_size`.
         household_size: The household size at which the caps are read.
 
     Returns:
@@ -239,7 +334,8 @@ def assign_cap_pairs(
     `cap_pair_id`, so the coverage gap stays visible rather than disappearing.
 
     Args:
-        sample: The joined caps and fallback, keyed `ags` by `household_size`.
+        sample: The joined caps and the Grenze ohne schlüssiges Konzept, keyed
+            `ags` by `household_size`.
         pairs: Cap pairs from `distinct_cap_pairs`.
         household_size: The household size the pairs were built at.
 
@@ -480,7 +576,8 @@ def exit_threshold_by_gemeinde(
     rather than of an arbitrary rent assumption.
 
     Args:
-        sample: The joined caps and fallback, keyed `ags` by `household_size`.
+        sample: The joined caps and the Grenze ohne schlüssiges Konzept, keyed
+            `ags` by `household_size`.
         heating: The heating assumption from
             `national_heizkosten_eur_per_month`.
 
@@ -612,13 +709,15 @@ def plot_exit_threshold_distribution(thresholds: pd.DataFrame) -> go.Figure:
             y=[-span, span],
             mode="lines",
             name="One euro of cap, one euro of income",
-            line={"color": "grey", "dash": "dash"},
+            line={"color": ANNOTATION_LINE_COLOUR, "dash": "dash"},
         ),
     )
     figure.update_layout(
-        title=("A cap error moves the transfer exit by more than its own size"),
-        xaxis_title="Local cap minus Wohngeld fallback (EUR per month)",
+        font={"size": FIGURE_FONT_SIZE},
+        xaxis_title=("Local cap minus Grenze ohne schlüssiges Konzept (EUR per month)"),
         yaxis_title="Change in gross income at transfer exit (EUR per month)",
+        xaxis_title_font_size=FIGURE_AXIS_TITLE_FONT_SIZE,
+        yaxis_title_font_size=FIGURE_AXIS_TITLE_FONT_SIZE,
         updatemenus=[
             {
                 "buttons": [
@@ -644,6 +743,276 @@ def plot_exit_threshold_distribution(thresholds: pd.DataFrame) -> go.Figure:
         ],
     )
     return figure
+
+
+def entitlement_profile(
+    sample: pd.DataFrame,
+    heating: HeatingAssumption,
+    ags: str = ENTITLEMENT_PROFILE_AGS,
+    household_key: str = ENTITLEMENT_PROFILE_HOUSEHOLD_KEY,
+) -> EntitlementProfile:
+    """Trace one Gemeinde's SGB claim down to zero under each cap.
+
+    The two exit thresholds are located by the same bisection every reported
+    threshold uses, so the marked zero crossings are the reported ones rather
+    than the nearest point of a drawing grid. The claim between them is
+    evaluated on an income ladder that runs past the later crossing, and the
+    monotonicity of the claim in income is asserted over that ladder.
+
+    Both scenarios assume the same actual Bruttokaltmiete — the larger of the
+    two caps, so that each cap binds — and the same Heizkosten, exactly as
+    `exit_threshold_by_gemeinde` does.
+
+    Args:
+        sample: The joined caps and the Grenze ohne schlüssiges Konzept, keyed
+            `ags` by `household_size`.
+        heating: The heating assumption from
+            `national_heizkosten_eur_per_month`.
+        ags: Eight-digit AGS of the Gemeinde to trace.
+        household_key: Key of the Modellhaushalt in `MODEL_HOUSEHOLDS`.
+
+    Returns:
+        The profile, carrying both curves and both zero crossings.
+
+    Raises:
+        ValueError: If `ags` does not resolve to exactly one cap pair at the
+            household's size.
+
+    """
+    size = MODEL_HOUSEHOLDS[household_key].household_size
+    gemeinde = sample.loc[sample["ags"] == ags]
+    pairs = distinct_cap_pairs(gemeinde, size)
+    _fail_if_not_exactly_one_cap_pair(pairs, ags, size)
+    rent = np.maximum(
+        pairs["kdu_cap"].to_numpy(dtype=float),
+        pairs["wohngeld_fallback_cap"].to_numpy(dtype=float),
+    )
+    heizkosten = heating.for_household(household_key)
+    thresholds = exit_threshold_eur_per_month(
+        pairs=pairs,
+        household_key=household_key,
+        actual_bruttokaltmiete=rent,
+        heizkosten=heizkosten,
+    )
+    ceiling = _plot_ceiling_eur_per_month(
+        [
+            float(thresholds[SCENARIO_LOCAL_CAP][0]),
+            float(thresholds[SCENARIO_FALLBACK][0]),
+        ],
+    )
+    incomes = np.arange(
+        0.0,
+        ceiling + ENTITLEMENT_PROFILE_INCOME_STEP_EUR,
+        ENTITLEMENT_PROFILE_INCOME_STEP_EUR,
+    )
+    evaluated = _evaluate_on_income_ladder(
+        pairs=pairs,
+        household_key=household_key,
+        actual_bruttokaltmiete=rent,
+        heizkosten=heizkosten,
+        incomes=incomes,
+    )
+    return EntitlementProfile(
+        curves=evaluated.loc[:, ["scenario", "gross_income", "anspruch"]].sort_values(
+            ["scenario", "gross_income"],
+            ignore_index=True,
+        ),
+        ags=ags,
+        household_key=household_key,
+        local_cap=float(pairs["kdu_cap"].iloc[0]),
+        wohngeld_fallback_cap=float(pairs["wohngeld_fallback_cap"].iloc[0]),
+        exit_threshold_local_cap=float(thresholds[SCENARIO_LOCAL_CAP][0]),
+        exit_threshold_fallback=float(thresholds[SCENARIO_FALLBACK][0]),
+    )
+
+
+def plot_entitlement_profile(
+    profile: EntitlementProfile,
+    gemeinde_name: str,
+) -> go.Figure:
+    """Draw the claim falling to zero under each cap, and the gap between.
+
+    The picture makes one sentence visible: recognising less rent pushes the
+    income at which the household stops receiving Bürgergeld down by more than
+    the rent that goes unrecognised. The two lines start one rent difference
+    apart at zero income — that vertical gap is an arithmetic identity — and
+    reach zero a longer horizontal distance apart, because the
+    Einkommensanrechnung of § 11b SGB II withdraws only part of each additional
+    euro.
+
+    The ratio annotated here is this Gemeinde's own. It is not the median ratio
+    across Gemeinden that `summarise_exit_thresholds` reports, which is computed
+    over a different population and takes a different value; the two must never
+    be presented as the same number.
+
+    Args:
+        profile: The profile from `entitlement_profile`.
+        gemeinde_name: Name of the Gemeinde, written into the figure because the
+            figure carries no title.
+
+    Returns:
+        The figure.
+
+    """
+    figure = go.Figure()
+    label_x = 0.06 * float(profile.curves["gross_income"].max())
+    highest_claim = float(profile.curves["anspruch"].max())
+    for scenario, cap, colour, name in (
+        (
+            SCENARIO_LOCAL_CAP,
+            profile.local_cap,
+            LOCAL_CAP_COLOUR,
+            "Local Kosten der Unterkunft cap",
+        ),
+        (
+            SCENARIO_FALLBACK,
+            profile.wohngeld_fallback_cap,
+            FALLBACK_COLOUR,
+            "Grenze ohne schlüssiges Konzept",
+        ),
+    ):
+        curve = profile.curves.loc[profile.curves["scenario"] == scenario]
+        figure.add_trace(
+            go.Scatter(
+                x=curve["gross_income"],
+                y=curve["anspruch"],
+                mode="lines",
+                line={"color": colour, "width": 4},
+                hovertemplate="%{x:,.0f} EUR gross, %{y:,.0f} EUR claim<extra></extra>",
+            ),
+        )
+        figure.add_annotation(
+            x=label_x,
+            y=(
+                float(np.interp(label_x, curve["gross_income"], curve["anspruch"]))
+                + LABEL_CLEARANCE_SHARE_OF_HIGHEST_CLAIM * highest_claim
+            ),
+            text=(f"{name}<br>recognises {_format_euro_with_cents(cap)} EUR of rent"),
+            showarrow=False,
+            xanchor="left",
+            yanchor="bottom",
+            font={"color": colour, "size": FIGURE_ANNOTATION_FONT_SIZE},
+            bgcolor=ANNOTATION_BACKGROUND,
+        )
+    _mark_zero_crossings(figure, profile)
+    figure.add_annotation(
+        x=1.0,
+        y=1.0,
+        xref="paper",
+        yref="paper",
+        text=(f"{gemeinde_name}, {MODEL_HOUSEHOLDS[profile.household_key].label}"),
+        showarrow=False,
+        xanchor="right",
+        yanchor="top",
+        font={"size": FIGURE_ANNOTATION_FONT_SIZE},
+    )
+    figure.update_layout(
+        showlegend=False,
+        font={"size": FIGURE_FONT_SIZE},
+        xaxis_title="Gross income (EUR per month)",
+        yaxis_title="SGB claim (EUR per month)",
+        xaxis_title_font_size=FIGURE_AXIS_TITLE_FONT_SIZE,
+        yaxis_title_font_size=FIGURE_AXIS_TITLE_FONT_SIZE,
+        yaxis={
+            "range": [
+                -CLAIM_AXIS_FLOOR_SHARE_OF_HIGHEST_CLAIM * highest_claim,
+                1.08 * highest_claim,
+            ],
+            "tickmode": "array",
+            "tickvals": np.arange(
+                0.0,
+                highest_claim + CLAIM_AXIS_TICK_STEP_EUR,
+                CLAIM_AXIS_TICK_STEP_EUR,
+            ),
+        },
+        margin={"t": 60},
+    )
+    return figure
+
+
+def _mark_zero_crossings(figure: go.Figure, profile: EntitlementProfile) -> None:
+    """Mark both exit thresholds and write the distance between them."""
+    lower = profile.exit_threshold_local_cap
+    upper = profile.exit_threshold_fallback
+    bracket_y = -MEASURING_BRACKET_DEPTH_SHARE_OF_HIGHEST_CLAIM * float(
+        profile.curves["anspruch"].max(),
+    )
+    figure.add_trace(
+        go.Scatter(
+            x=[lower, upper],
+            y=[0.0, 0.0],
+            mode="markers",
+            marker={
+                "size": 14,
+                "color": [LOCAL_CAP_COLOUR, FALLBACK_COLOUR],
+                "line": {"width": 2, "color": ANNOTATION_LINE_COLOUR},
+            },
+            hovertemplate="Exit at %{x:,.0f} EUR gross<extra></extra>",
+        ),
+    )
+    figure.add_trace(
+        go.Scatter(
+            x=[lower, upper],
+            y=[bracket_y, bracket_y],
+            mode="lines+markers",
+            line={"color": ANNOTATION_LINE_COLOUR, "width": 2},
+            marker={"symbol": "line-ns", "size": 12, "line": {"width": 2}},
+            hoverinfo="skip",
+        ),
+    )
+    for crossing in (lower, upper):
+        figure.add_shape(
+            type="line",
+            x0=crossing,
+            x1=crossing,
+            y0=0.0,
+            y1=bracket_y,
+            line={"color": ANNOTATION_LINE_COLOUR, "width": 1, "dash": "dot"},
+        )
+    figure.add_annotation(
+        x=0.5 * (lower + upper),
+        y=bracket_y,
+        text=(
+            f"The exit falls by {_format_euro(profile.exit_threshold_shift)} EUR "
+            f"of gross income —<br>{profile.amplification:.2f} times the "
+            f"{_format_euro_with_cents(profile.rent_not_recognised)} EUR of rent "
+            f"left "
+            f"unrecognised"
+        ),
+        showarrow=False,
+        yanchor="top",
+        yshift=-12,
+        font={"size": FIGURE_ANNOTATION_FONT_SIZE},
+        bgcolor=ANNOTATION_BACKGROUND,
+    )
+
+
+def _format_euro(amount: float) -> str:
+    """Write a euro amount in whole euro.
+
+    Used for the shift of the exit threshold, which is located by bisection to
+    one euro and so carries no cents to report.
+    """
+    return f"{amount:,.0f}"
+
+
+def _format_euro_with_cents(amount: float) -> str:
+    """Write a euro amount to the cent.
+
+    Used for every rent ceiling, because the Angemessenheitsgrenze ohne
+    schlüssiges Konzept is a product of a markup and lands on cents, and two
+    ceilings shown side by side must be written to the same precision.
+    """
+    return f"{amount:,.2f}"
+
+
+def _plot_ceiling_eur_per_month(
+    thresholds: Sequence[float],
+    headroom: float = ENTITLEMENT_PROFILE_HEADROOM,
+    rounding: float = ENTITLEMENT_PROFILE_CEILING_ROUNDING_EUR,
+) -> float:
+    """Where the income axis ends: past the later crossing, on a round euro."""
+    return float(np.ceil(max(thresholds) * headroom / rounding) * rounding)
 
 
 def _evaluate_on_income_ladder(
@@ -1017,6 +1386,21 @@ def _bisect(
     return np.ceil(upper)
 
 
+def _fail_if_not_exactly_one_cap_pair(
+    pairs: pd.DataFrame,
+    ags: str,
+    household_size: int,
+) -> None:
+    if len(pairs) != 1:
+        msg = (
+            f"Gemeinde {ags} resolves to {len(pairs)} cap pairs at household "
+            f"size {household_size}, but the entitlement profile traces exactly "
+            f"one; the Gemeinde is missing from the sample or its cap is not "
+            f"contrasted"
+        )
+        raise ValueError(msg)
+
+
 def _fail_if_case_columns_are_missing(cases: pd.DataFrame) -> None:
     missing = [name for name in CASE_COLUMNS if name not in cases.columns]
     if missing:
@@ -1082,19 +1466,24 @@ def _fail_if_a_claim_survives_the_ceiling(
 
 __all__ = [
     "CASE_COLUMNS",
+    "ENTITLEMENT_PROFILE_AGS",
+    "ENTITLEMENT_PROFILE_HOUSEHOLD_KEY",
     "INCOME_LADDER_POINTS",
     "POLICY_DATE",
     "SCENARIOS",
     "SCENARIO_FALLBACK",
     "SCENARIO_LOCAL_CAP",
+    "EntitlementProfile",
     "HeatingAssumption",
     "assign_cap_pairs",
     "build_cases",
     "distinct_cap_pairs",
+    "entitlement_profile",
     "evaluate",
     "exit_threshold_by_gemeinde",
     "exit_threshold_eur_per_month",
     "national_heizkosten_eur_per_month",
+    "plot_entitlement_profile",
     "plot_exit_threshold_distribution",
     "summarise_exit_thresholds",
     "wohnflaeche_sqm",

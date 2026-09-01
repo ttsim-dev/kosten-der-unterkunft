@@ -76,7 +76,7 @@ def caps() -> pd.DataFrame:
 
 @pytest.fixture
 def fallback() -> pd.DataFrame:
-    """The Wohngeld fallback for the same five Gemeinden."""
+    """The Grenze ohne schlüssiges Konzept for the same five Gemeinden."""
     return pd.DataFrame(
         {
             "ags": [f"0100{index}000" for index in range(1, 6)],

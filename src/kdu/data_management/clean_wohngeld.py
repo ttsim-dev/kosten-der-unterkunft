@@ -1,10 +1,10 @@
-"""Build the statutory benchmark each local KdU cap is measured against.
+"""Build the Grenze ohne schlüssiges Konzept each cap is measured against.
 
 Where a Kreis publishes no schlüssiges Konzept, the Angemessenheitsgrenze is
 the Wohngeld table plus a Sicherheitszuschlag of 10 % (BSG, 12.12.2013 -
-B 4 AS 87/12 R). The benchmark `wohngeld_fallback_cap` reads that table as the
-Anlage 1 Höchstbetrag of § 12 Absatz 1 WoGG together with the Klimakomponente
-of § 12 Absatz 7 WoGG:
+B 4 AS 87/12 R). That Angemessenheitsgrenze ohne schlüssiges Konzept is
+`wohngeld_fallback_cap`, which reads that table as the Anlage 1 Höchstbetrag
+of § 12 Absatz 1 WoGG together with the Klimakomponente of § 12 Absatz 7 WoGG:
 
     wohngeld_fallback_cap = (Höchstbetrag + Klimakomponente) * 1.10
 
@@ -22,11 +22,12 @@ Sicherheitszuschlag absorbs the backward-looking nature of the Wohngeld table
 while the Klimakomponente addresses future price development.
 
 The Heizkostenentlastung of § 12 Absatz 6 WoGG is read from the parameter table
-but never enters the benchmark. Every comparison in this project is on the
-Bruttokaltmiete, and heating costs sit on the other side of that line: § 9 WoGG
-excludes heating and hot water from the wohngeldrechtliche Miete, so the
-benchmark and the local caps are on the same rent concept only as long as the
-heating component stays out.
+but never enters the Grenze ohne schlüssiges Konzept. Every comparison in this
+project is on the Bruttokaltmiete, and heating costs sit on the other side of
+that line: § 9 WoGG excludes heating and hot water from the
+wohngeldrechtliche Miete, so the Grenze ohne schlüssiges Konzept and the local
+caps are on the same rent concept only as long as the heating component stays
+out.
 
 The only Gemeinde-level input is the Mietenstufe of `wogg_mietstufe`. It is
 never derived from Kreis membership or population: it is the classification
@@ -58,7 +59,7 @@ WOHNGELD_FALLBACK_COLUMNS: tuple[str, ...] = (
 
 @dataclass(frozen=True)
 class WohngeldParameters:
-    """The § 12 WoGG parameters the benchmark is built from."""
+    """The § 12 WoGG parameters the Grenze ohne schlüssiges Konzept is built from."""
 
     hoechstbetrag: MappingProxyType[tuple[int, int], float]
     """`(mietenstufe, household_size)` → Höchstbetrag in euro per month."""
@@ -92,7 +93,7 @@ def build_wohngeld_fallback(
     mietenstufen: pd.DataFrame,
     parameters: WohngeldParameters,
 ) -> pd.DataFrame:
-    """Expand every Gemeinde to the benchmark at each household size.
+    """Expand every Gemeinde to the Grenze ohne schlüssiges Konzept at each size.
 
     Args:
         mietenstufen: One row per Gemeinde, with an eight-digit string `ags`
@@ -102,7 +103,8 @@ def build_wohngeld_fallback(
     Returns:
         `len(mietenstufen) * len(HOUSEHOLD_SIZES)` rows with
         `WOHNGELD_FALLBACK_COLUMNS`. A Gemeinde without a statutory Mietenstufe
-        keeps its rows with a missing benchmark; none is ever dropped.
+        keeps its rows with a missing Grenze ohne schlüssiges Konzept; none is
+        ever dropped.
 
     """
     _fail_if_key_columns_missing(mietenstufen)

@@ -3,8 +3,8 @@
 The Zensus recorded the Nettokaltmiete of every occupied rented dwelling on
 2022-05-15, per Gemeinde, as a mean per square metre and as dwelling counts by
 rent class. It is the only rent measure available at the resolution the local
-caps are set at, which is what makes it the benchmark this project compares
-them against.
+caps are set at, which is what makes it the rent measurement this project
+compares them against.
 
 Three properties of the measure are part of it and constrain what may be said:
 

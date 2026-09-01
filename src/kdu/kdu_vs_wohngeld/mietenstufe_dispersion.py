@@ -35,7 +35,7 @@ import plotly.io as pio
 
 from kdu.weighting import weighted_quantile, weighted_standard_deviation
 
-pio.templates.default = "plotly_dark"
+pio.templates.default = "plotly_white"
 
 # The household size the reported dispersion and variance shares are read at.
 # Single-person households are the size every Träger publishes.
@@ -50,13 +50,13 @@ CLASSIFICATIONS: dict[str, tuple[str, ...]] = {
     "kreis": ("district_ags",),
 }
 
-NEUTRAL_COLOUR = "#9aa0a6"
-ACCENT_COLOUR = "#e8833a"
+NEUTRAL_COLOUR = "#5f6368"
+ACCENT_COLOUR = "#c25e12"
 
 # The figure is projected in a lecture room, where the default sizes are
-# unreadable from the back rows.
-BASE_FONT_SIZE = 18
-TITLE_FONT_SIZE = 22
+# unreadable from the back rows. The rendered image is 1600 by 900 pixels.
+BASE_FONT_SIZE = 20
+AXIS_TITLE_FONT_SIZE = 24
 
 HOUSEHOLD_SIZE_WORDS: dict[int, str] = {
     1: "one",
@@ -217,12 +217,14 @@ def plot_mietenstufe_dispersion(
         frame: The output of {func}`kdu.kdu_vs_wohngeld.cap_comparison.
             build_cap_comparison`.
         shares: The output of {func}`variance_shares`. Its `n_gemeinden`
-            supplies the sample count the title reports.
+            supplies the sample count the horizontal axis title reports.
         household_size: The size at which the caps are read.
 
     Returns:
         A one-panel figure: the distribution of the local cap inside each
-        statutory class, with the number of Gemeinden on each tick label.
+        statutory class, with the number of Gemeinden on each tick label. The
+        axis titles carry the estimand, the unit, the weighting and the total
+        number of Gemeinden.
 
     """
     observed = _observations_at(frame, household_size)
@@ -239,27 +241,30 @@ def plot_mietenstufe_dispersion(
                 showlegend=False,
             ),
         )
-    figure.update_layout(
-        title=_figure_title(shares, household_size),
-        title_font_size=TITLE_FONT_SIZE,
-        font_size=BASE_FONT_SIZE,
-    )
-    figure.update_xaxes(title_text="Mietenstufe", tickfont_size=BASE_FONT_SIZE)
-    figure.update_yaxes(
-        title_text="Local cap, € per month",
+    figure.update_layout(font_size=BASE_FONT_SIZE)
+    figure.update_xaxes(
+        title_text=_horizontal_axis_title(shares),
         tickfont_size=BASE_FONT_SIZE,
+        title_font_size=AXIS_TITLE_FONT_SIZE,
+    )
+    figure.update_yaxes(
+        title_text=_vertical_axis_title(household_size),
+        tickfont_size=BASE_FONT_SIZE,
+        title_font_size=AXIS_TITLE_FONT_SIZE,
     )
     return figure
 
 
-def _figure_title(shares: pd.DataFrame, household_size: int) -> str:
-    """Name the estimand, the unit, the weighting and the sample count."""
+def _horizontal_axis_title(shares: pd.DataFrame) -> str:
+    """Name the classification, the weighting and the sample count."""
     n_gemeinden = int(shares["n_gemeinden"].to_numpy()[0])
+    return f"Mietenstufe — one Gemeinde one weight; n = {n_gemeinden:,}"
+
+
+def _vertical_axis_title(household_size: int) -> str:
+    """Name the estimand and its unit."""
     size_word = HOUSEHOLD_SIZE_WORDS.get(household_size, str(household_size))
-    return (
-        f"Local {size_word}-person KdU cap by Mietenstufe — "
-        f"€ per month; one Gemeinde one weight; n = {n_gemeinden:,}"
-    )
+    return f"Local {size_word}-person KdU cap, € per month"
 
 
 def _tick_label(mietenstufe: int, n_gemeinden: int) -> str:
