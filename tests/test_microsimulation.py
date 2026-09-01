@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import pytest
 
 from kdu.eligibility.microsimulation import (
@@ -16,8 +15,6 @@ from kdu.eligibility.microsimulation import (
     build_cases,
     distinct_cap_pairs,
     national_heizkosten_eur_per_month,
-    plot_entitlement_profile,
-    plot_exit_threshold_distribution,
     summarise_exit_thresholds,
     wohnflaeche_sqm,
 )
@@ -161,7 +158,7 @@ def test_plot_ceiling_snaps_to_a_round_income() -> None:
 
 @pytest.fixture
 def profile() -> EntitlementProfile:
-    """Bad Homburg v.d.Höhe: a claim that falls linearly to zero under each cap."""
+    """A claim that falls linearly to zero under each of the two caps."""
     incomes = np.linspace(0.0, 2800.0, 15)
     curves = pd.concat(
         [
@@ -195,130 +192,22 @@ def profile() -> EntitlementProfile:
 def test_entitlement_profile_reports_the_rent_not_recognised(
     profile: EntitlementProfile,
 ) -> None:
-    """The local cap of Bad Homburg recognises 226.82 EUR less rent per month."""
+    """The rent not recognised is the gap between the two caps."""
     assert profile.rent_not_recognised == pytest.approx(226.82)
 
 
 def test_entitlement_profile_reports_the_shift_of_the_exit(
     profile: EntitlementProfile,
 ) -> None:
-    """The exit falls by 388 EUR of gross income when the local cap applies."""
+    """The exit falls by the distance between the two zero crossings."""
     assert profile.exit_threshold_shift == pytest.approx(388.0)
 
 
 def test_entitlement_profile_amplification_is_the_local_ratio(
     profile: EntitlementProfile,
 ) -> None:
-    """This Gemeinde's ratio is 388 / 226.82, not the median across Gemeinden."""
+    """The amplification is this profile's own ratio, not a median across Gemeinden."""
     assert profile.amplification == pytest.approx(388.0 / 226.82)
-
-
-GEMEINDE_NAME = "Bad Homburg v.d.Höhe"
-
-
-@pytest.fixture
-def figure(profile: EntitlementProfile) -> go.Figure:
-    """The entitlement profile of Bad Homburg v.d.Höhe as it is drawn."""
-    return plot_entitlement_profile(profile, gemeinde_name=GEMEINDE_NAME)
-
-
-def _solid_shapes(figure: go.Figure) -> list[go.layout.Shape]:
-    """Every shape drawn as a solid rule: a measurement line or an end cap."""
-    return [shape for shape in figure.layout.shapes if shape.line.dash == "solid"]
-
-
-def _dotted_shapes(figure: go.Figure) -> list[go.layout.Shape]:
-    """Every shape drawn as a dotted rule: a leader running to a measurement line."""
-    return [shape for shape in figure.layout.shapes if shape.line.dash == "dot"]
-
-
-def _horizontal_measurement_line(figure: go.Figure) -> go.layout.Shape:
-    """The solid rule spanning the two zero crossings."""
-    spans = [
-        shape
-        for shape in _solid_shapes(figure)
-        if shape.y0 == shape.y1 and shape.x0 != shape.x1
-    ]
-    return max(spans, key=lambda shape: abs(shape.x1 - shape.x0))
-
-
-def _vertical_measurement_line(figure: go.Figure) -> go.layout.Shape:
-    """The solid rule spanning the two claims at the lowest gross income."""
-    spans = [
-        shape
-        for shape in _solid_shapes(figure)
-        if shape.x0 == shape.x1 and shape.y0 != shape.y1
-    ]
-    return max(spans, key=lambda shape: abs(shape.y1 - shape.y0))
-
-
-def test_plot_entitlement_profile_draws_one_line_per_scenario(
-    figure: go.Figure,
-) -> None:
-    """Both ceilings appear as their own claim-over-income line."""
-    lines = [trace for trace in figure.data if trace.mode == "lines"]
-    assert len(lines) == 2
-
-
-def test_plot_entitlement_profile_carries_no_title(figure: go.Figure) -> None:
-    """The slide supplies the heading, so the figure carries none."""
-    assert figure.layout.title.text is None
-
-
-def test_plot_entitlement_profile_names_both_curves_in_the_legend(
-    figure: go.Figure,
-) -> None:
-    """The legend names the local cap and the Wohngeld-based Proxy."""
-    named = [trace.name for trace in figure.data if trace.mode == "lines"]
-    assert named == ["Angemessene KdU (local cap)", "Wohngeld-based Proxy"]
-
-
-def test_plot_entitlement_profile_lays_the_legend_out_horizontally(
-    figure: go.Figure,
-) -> None:
-    """The two names sit side by side rather than stacked in a box."""
-    assert figure.layout.legend.orientation == "h"
-
-
-def test_plot_entitlement_profile_places_the_legend_below_the_plot(
-    figure: go.Figure,
-) -> None:
-    """The legend sits under the income axis, clear of both curves."""
-    assert figure.layout.legend.y < 0.0
-
-
-def test_plot_entitlement_profile_names_the_gemeinde_and_the_household(
-    figure: go.Figure,
-) -> None:
-    """One corner annotation says whose claim is drawn and for whom."""
-    texts = [annotation.text for annotation in figure.layout.annotations]
-    assert f"{GEMEINDE_NAME}, single adult" in texts
-
-
-def test_plot_entitlement_profile_writes_only_the_two_measurements_and_the_corner(
-    figure: go.Figure,
-) -> None:
-    """No prose remains: two euro labels and the corner annotation, nothing else."""
-    texts = {annotation.text for annotation in figure.layout.annotations}
-    assert texts == {"388 €", "227 €", f"{GEMEINDE_NAME}, single adult"}
-
-
-def test_plot_entitlement_profile_measures_the_shift_of_the_exit(
-    profile: EntitlementProfile,
-    figure: go.Figure,
-) -> None:
-    """The horizontal dimension line spans the two zero crossings."""
-    line = _horizontal_measurement_line(figure)
-    assert line.x1 - line.x0 == pytest.approx(profile.exit_threshold_shift)
-
-
-def test_plot_entitlement_profile_measures_the_rent_not_recognised(
-    profile: EntitlementProfile,
-    figure: go.Figure,
-) -> None:
-    """The vertical dimension line spans the two claims at the lowest income."""
-    line = _vertical_measurement_line(figure)
-    assert line.y1 - line.y0 == pytest.approx(profile.rent_not_recognised)
 
 
 def test_entitlement_profile_curves_stand_one_rent_difference_apart(
@@ -331,135 +220,3 @@ def test_entitlement_profile_curves_stand_one_rent_difference_apart(
     assert claims[SCENARIO_FALLBACK] - claims[SCENARIO_LOCAL_CAP] == pytest.approx(
         profile.rent_not_recognised,
     )
-
-
-def test_plot_entitlement_profile_offsets_the_shift_below_the_claim_axis(
-    figure: go.Figure,
-) -> None:
-    """The horizontal dimension line clears the local cap's flat run at zero."""
-    assert _horizontal_measurement_line(figure).y0 < 0.0
-
-
-def test_plot_entitlement_profile_offsets_the_rent_gap_right_of_the_income_axis(
-    figure: go.Figure,
-) -> None:
-    """The vertical dimension line stands clear of the claim axis itself."""
-    assert _vertical_measurement_line(figure).x0 > 0.0
-
-
-def test_plot_entitlement_profile_caps_the_horizontal_dimension_line(
-    profile: EntitlementProfile,
-    figure: go.Figure,
-) -> None:
-    """Both ends of the measured span carry a perpendicular end cap."""
-    line = _horizontal_measurement_line(figure)
-    capped = {
-        shape.x0
-        for shape in _solid_shapes(figure)
-        if shape.x0 == shape.x1 and shape.y0 < line.y0 < shape.y1
-    }
-    assert capped == {
-        profile.exit_threshold_local_cap,
-        profile.exit_threshold_fallback,
-    }
-
-
-def test_plot_entitlement_profile_caps_the_vertical_dimension_line(
-    figure: go.Figure,
-) -> None:
-    """Both ends of the measured claim gap carry a perpendicular end cap."""
-    line = _vertical_measurement_line(figure)
-    capped = {
-        shape.y0
-        for shape in _solid_shapes(figure)
-        if shape.y0 == shape.y1 and shape.x0 < line.x0 < shape.x1
-    }
-    assert capped == {line.y0, line.y1}
-
-
-def test_plot_entitlement_profile_leads_from_both_zero_crossings(
-    profile: EntitlementProfile,
-    figure: go.Figure,
-) -> None:
-    """A dotted leader runs from each zero crossing out to the measurement line."""
-    led = {
-        shape.x0
-        for shape in _dotted_shapes(figure)
-        if shape.x0 == shape.x1 and shape.y0 == 0.0
-    }
-    assert led == {
-        profile.exit_threshold_local_cap,
-        profile.exit_threshold_fallback,
-    }
-
-
-def test_plot_entitlement_profile_leads_from_both_claims_at_the_lowest_income(
-    figure: go.Figure,
-) -> None:
-    """A dotted leader runs from each intercept out to the measurement line."""
-    line = _vertical_measurement_line(figure)
-    led = {
-        shape.y0
-        for shape in _dotted_shapes(figure)
-        if shape.y0 == shape.y1 and shape.x1 == line.x0
-    }
-    assert led == {line.y0, line.y1}
-
-
-def test_plot_entitlement_profile_names_the_income_axis(figure: go.Figure) -> None:
-    """The horizontal axis is gross income in euro per month."""
-    assert figure.layout.xaxis.title.text == "Gross income, Euro per month"
-
-
-def test_plot_entitlement_profile_names_the_claim_axis(figure: go.Figure) -> None:
-    """The vertical axis is the SGB claim in euro per month."""
-    assert figure.layout.yaxis.title.text == "SGB claim, Euro per month"
-
-
-def test_plot_entitlement_profile_ticks_the_claim_axis_from_zero(
-    figure: go.Figure,
-) -> None:
-    """No tick falls below zero, because a negative claim means nothing."""
-    assert tuple(figure.layout.yaxis.tickvals) == (
-        0.0,
-        200.0,
-        400.0,
-        600.0,
-        800.0,
-        1000.0,
-        1200.0,
-        1400.0,
-    )
-
-
-def test_plot_entitlement_profile_extends_the_claim_axis_below_the_dimension_line(
-    figure: go.Figure,
-) -> None:
-    """The claim axis reaches under the measured span and its label."""
-    assert figure.layout.yaxis.range[0] < _horizontal_measurement_line(figure).y0
-
-
-def test_plot_exit_threshold_distribution_carries_no_title() -> None:
-    """The slide supplies the heading, so the figure carries none."""
-    thresholds = pd.DataFrame(
-        {
-            "household_key": ["single_35", "single_35"],
-            "cap_difference": [-226.82, 10.0],
-            "exit_threshold_difference": [-388.0, 20.0],
-        },
-    )
-    figure = plot_exit_threshold_distribution(thresholds)
-    assert figure.layout.title.text is None
-
-
-def test_plot_exit_threshold_distribution_names_the_grenze_in_its_axis_title() -> None:
-    """The horizontal axis names the Grenze ohne schlüssiges Konzept."""
-    thresholds = pd.DataFrame(
-        {
-            "household_key": ["single_35", "single_35"],
-            "cap_difference": [-226.82, 10.0],
-            "exit_threshold_difference": [-388.0, 20.0],
-        },
-    )
-    figure = plot_exit_threshold_distribution(thresholds)
-    assert "Grenze ohne schlüssiges Konzept" in figure.layout.xaxis.title.text

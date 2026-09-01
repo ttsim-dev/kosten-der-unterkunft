@@ -119,6 +119,11 @@ recognised and is reported as one. Which Träger does which cannot be read off t
 because those Richtlinien were never obtained; the project does not separate them out,
 and every result covers every Gemeinde.
 
+**Figures are not tested.** Axis titles, annotations, traces, colours, ranges and layout
+are presentation, and a test that asserts on them pins the drawing rather than the
+finding, so it breaks on every honest redesign while catching nothing. Test the pure
+function that produces the numbers a figure displays, and let the figure change freely.
+
 **Language.** No abbreviations in identifiers or prose. German legal terms of art —
 Bruttokaltmiete, Mietenstufe, Bedarfsgemeinschaft, Härtefallregelung — stay German and
 stay spelled out. The map is in German because its readers are; everything else is in

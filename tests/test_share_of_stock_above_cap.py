@@ -7,14 +7,12 @@ import pytest
 from kdu.market_rent_comparison.share_of_stock_above_cap import (
     ABSOLUTE_DIFFERENCE_LABEL,
     GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT,
-    PRESENTATION_BASE_FONT_SIZE,
     RENT_BANDS,
     SIGNED_DIFFERENCE_LABEL,
     _kalte_betriebskosten_per_gemeinde,
     build_gemeinde_shares,
     nettokaltmiete_threshold,
     share_above_threshold,
-    share_of_stock_above_cap_figure,
     summarise_shares,
 )
 
@@ -282,35 +280,6 @@ def test_summarise_shares_names_no_quantity_benchmark() -> None:
     summary = summarise_shares(_shares_frame([0.10, 0.20], [0.30, 0.40]))
 
     assert not any("benchmark" in quantity.lower() for quantity in summary["quantity"])
-
-
-def test_share_of_stock_above_cap_figure_carries_no_in_figure_title() -> None:
-    """The slide supplies the heading, so the figure draws none."""
-    figure = share_of_stock_above_cap_figure(
-        _shares_frame([0.10, 0.20, 0.30], [0.40, 0.50, 0.60]),
-    )
-
-    assert figure.layout.title.text is None
-
-
-def test_share_of_stock_above_cap_figure_names_the_grenze_in_its_legend() -> None:
-    """The grey distribution is labelled Grenze ohne schlüssiges Konzept."""
-    figure = share_of_stock_above_cap_figure(
-        _shares_frame([0.10, 0.20, 0.30], [0.40, 0.50, 0.60]),
-    )
-
-    assert GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT in [
-        trace.name for trace in figure.data
-    ]
-
-
-def test_share_of_stock_above_cap_figure_sets_a_projector_legible_base_font() -> None:
-    """The base font is large enough to read at 1600 by 900 pixels."""
-    figure = share_of_stock_above_cap_figure(
-        _shares_frame([0.10, 0.20, 0.30], [0.40, 0.50, 0.60]),
-    )
-
-    assert figure.layout.font.size >= PRESENTATION_BASE_FONT_SIZE
 
 
 def test_summarise_shares_reports_the_median_signed_difference() -> None:

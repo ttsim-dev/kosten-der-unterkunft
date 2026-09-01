@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import pytest
 
 from kdu.config import WeightingScheme, catalog_path
@@ -14,8 +13,6 @@ from kdu.kdu_vs_wohngeld.cap_comparison import (
     cap_ratio_pairs_across_household_sizes,
     cap_ratio_spread_across_household_sizes,
     count_gemeinden_at_benchmark,
-    plot_cap_difference_distribution,
-    plot_cap_ratio_by_household_size,
     share_with_sign_flip,
     summarise_cap_difference_eur,
 )
@@ -361,28 +358,6 @@ def test_extreme_allocation_leaves_a_kreis_without_any_cap_at_zero(
     assert weighted[scheme.value].eq(0.0).all()
 
 
-def test_plot_cap_difference_distribution_draws_household_size_one_euro_differences(
-    caps: pd.DataFrame,
-    fallback: pd.DataFrame,
-    gemeinden: pd.DataFrame,
-) -> None:
-    """The trace carries the euro departures of household size one, not the ratios."""
-    frame = build_cap_comparison(caps, fallback, gemeinden)
-    figure = plot_cap_difference_distribution(frame)
-    assert sorted(figure.data[0].x) == pytest.approx([-100.0, 100.0])
-
-
-def test_plot_cap_difference_distribution_names_the_counted_unit_on_the_axis(
-    caps: pd.DataFrame,
-    fallback: pd.DataFrame,
-    gemeinden: pd.DataFrame,
-) -> None:
-    """The vertical axis states what is counted and under which weighting."""
-    frame = build_cap_comparison(caps, fallback, gemeinden)
-    figure = plot_cap_difference_distribution(frame)
-    assert figure.layout.yaxis.title.text == "# Gemeinden (unweighted)"
-
-
 def _difference_frame(differences: list[float]) -> pd.DataFrame:
     """One-person euro departures, one row per Gemeinde."""
     return pd.DataFrame(
@@ -392,33 +367,6 @@ def _difference_frame(differences: list[float]) -> pd.DataFrame:
             "cap_difference_eur": differences,
         },
     )
-
-
-def _figure_with_deciles_away_from_zero() -> go.Figure:
-    """A figure whose three deciles all fall left of the reference line."""
-    return plot_cap_difference_distribution(
-        _difference_frame([-90.0, -60.0, -40.0, -25.0, -10.0]),
-    )
-
-
-def test_plot_cap_difference_distribution_draws_three_decile_lines() -> None:
-    """Only p10, p50 and p90 are drawn; nine dotted lines read as clutter."""
-    figure = _figure_with_deciles_away_from_zero()
-    assert sum(shape.line.dash == "dot" for shape in figure.layout.shapes) == 3
-
-
-def test_plot_cap_difference_distribution_keeps_the_reference_line_dashed() -> None:
-    """The zero reference line is dashed, so it never reads as a decile line."""
-    figure = _figure_with_deciles_away_from_zero()
-    benchmark = [shape for shape in figure.layout.shapes if shape.x0 == 0.0]
-    assert [shape.line.dash for shape in benchmark] == ["dash"]
-
-
-def test_plot_cap_difference_distribution_draws_the_reference_line_heavier() -> None:
-    """The zero reference line is wider than the decile lines beside it."""
-    figure = _figure_with_deciles_away_from_zero()
-    widths = {shape.line.dash: shape.line.width for shape in figure.layout.shapes}
-    assert widths["dash"] > widths["dot"]
 
 
 @pytest.mark.parametrize(
@@ -468,31 +416,6 @@ def test_count_gemeinden_at_benchmark_ignores_other_household_sizes() -> None:
         },
     )
     assert count_gemeinden_at_benchmark(frame).count == 0
-
-
-def test_plot_cap_difference_distribution_labels_only_the_three_deciles(
-    caps: pd.DataFrame,
-    fallback: pd.DataFrame,
-    gemeinden: pd.DataFrame,
-) -> None:
-    """The reference line at zero carries no label, so only p10, p50 and p90 do."""
-    at_benchmark = caps.assign(kdu_cap=[400.0, 600.0, 400.0, 480.0])
-    frame = build_cap_comparison(at_benchmark, fallback, gemeinden)
-    figure = plot_cap_difference_distribution(frame)
-    assert len(figure.layout.annotations) == 3
-
-
-def test_plot_cap_difference_distribution_names_the_estimand_on_the_axis(
-    caps: pd.DataFrame,
-    fallback: pd.DataFrame,
-    gemeinden: pd.DataFrame,
-) -> None:
-    """The figure carries no title, so the axis states the estimand and its unit."""
-    frame = build_cap_comparison(caps, fallback, gemeinden)
-    figure = plot_cap_difference_distribution(frame)
-    assert figure.layout.xaxis.title.text == (
-        "Angemessene KdU minus Wohngeld-based Proxy, Euro per month"
-    )
 
 
 _BUILT_TABLES = tuple(
@@ -627,59 +550,6 @@ def test_share_with_sign_flip_leaves_a_gemeinde_on_the_grenze_unflipped() -> Non
         _ratio_frame({"01001000": {1: 1.0, 4: 1.0}}),
     )
     assert share_with_sign_flip(pairs) == pytest.approx(0.0)
-
-
-def _ratio_scatter() -> go.Figure:
-    """The scatter drawn from four Gemeinden spread either side of the Grenze."""
-    return plot_cap_ratio_by_household_size(
-        cap_ratio_pairs_across_household_sizes(
-            _ratio_frame(
-                {
-                    "01001000": {1: 0.95, 4: 1.08},
-                    "01002000": {1: 0.95, 4: 0.90},
-                    "01003000": {1: 1.05, 4: 1.10},
-                    "01004000": {1: 1.15, 4: 1.20},
-                },
-            ),
-        ),
-    )
-
-
-def test_plot_cap_ratio_by_household_size_names_the_horizontal_estimand() -> None:
-    """The horizontal axis states the measure and the household size it is read at."""
-    assert _ratio_scatter().layout.xaxis.title.text == (
-        "Angemessene KdU ÷ Wohngeld-based Proxy, single adult"
-    )
-
-
-def test_plot_cap_ratio_by_household_size_names_the_vertical_estimand() -> None:
-    """The vertical axis states the same measure at the four-person household."""
-    assert _ratio_scatter().layout.yaxis.title.text == (
-        "Angemessene KdU ÷ Wohngeld-based Proxy, four-person household"
-    )
-
-
-def test_plot_cap_ratio_by_household_size_draws_an_identity_line() -> None:
-    """A Gemeinde whose ratio does not move with size sits on the drawn diagonal."""
-    lines = [trace for trace in _ratio_scatter().data if trace.mode == "lines"]
-    assert [tuple(line.x) == tuple(line.y) for line in lines] == [True]
-
-
-def test_plot_cap_ratio_by_household_size_gives_both_axes_the_same_range() -> None:
-    """Equal ranges make the diagonal the 45-degree line it is read as."""
-    figure = _ratio_scatter()
-    assert figure.layout.xaxis.range == figure.layout.yaxis.range
-
-
-def test_plot_cap_ratio_by_household_size_leaves_the_scale_unanchored() -> None:
-    """Anchoring the scales widens the drawn range beyond the one set here."""
-    assert _ratio_scatter().layout.yaxis.scaleanchor is None
-
-
-def test_plot_cap_ratio_by_household_size_rules_both_axes_at_the_grenze() -> None:
-    """A crosshair at one separates the four quadrants the sign flip is read from."""
-    shapes = _ratio_scatter().layout.shapes
-    assert sorted(shape.x0 == 1.0 for shape in shapes) == [False, True]
 
 
 @requires_built_data

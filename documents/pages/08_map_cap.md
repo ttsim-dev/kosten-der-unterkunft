@@ -5,8 +5,3 @@
 </div>
 
 <img src="/map/germany_map_kdu_cap.png" style="max-height: 355px; margin: 0 auto;" />
-
-<!--
-The collected figure itself, at household size one. The Kreis is the Träger that decides,
-but it is not the unit at which the rule applies — that is the next slide's zoom.
--->

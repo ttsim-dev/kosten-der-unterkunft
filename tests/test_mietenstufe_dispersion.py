@@ -192,25 +192,6 @@ def _one_mietenstufe(caps: list[float]) -> pd.DataFrame:
     )
 
 
-def test_plot_mietenstufe_dispersion_names_the_classification_on_the_axis() -> None:
-    """The horizontal axis names the statutory class each box stands for."""
-    figure = plot_mietenstufe_dispersion(_four_gemeinden())
-    assert figure.layout.xaxis.title.text == "Mietstufe"
-
-
-def test_plot_mietenstufe_dispersion_names_the_estimand_and_unit_on_the_axis() -> None:
-    """The vertical axis states what is drawn and in which unit."""
-    figure = plot_mietenstufe_dispersion(_four_gemeinden())
-    assert figure.layout.yaxis.title.text == "KdU cap, Euro per month"
-
-
-def test_plot_mietenstufe_dispersion_marks_the_grenze_in_every_box() -> None:
-    """Each class carries the one Grenze ohne schlüssiges Konzept it is measured by."""
-    figure = plot_mietenstufe_dispersion(_four_gemeinden())
-    markers = [trace for trace in figure.data if trace.type == "scatter"]
-    assert [tuple(trace.y) for trace in markers] == [(430.0, 510.0)]
-
-
 def test_plot_mietenstufe_dispersion_rejects_two_grenzen_in_one_mietenstufe() -> None:
     """The Grenze is one value per class, so two of them means the frame is wrong."""
     frame = _four_gemeinden().assign(

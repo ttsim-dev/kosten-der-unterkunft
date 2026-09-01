@@ -103,11 +103,13 @@ PENSIONER_RETIREMENT_AGE_YEARS = 65
 PENSIONER_RETIREMENT_MONTH = 11
 
 # The single Gemeinde and Modellhaushalt whose claim is drawn out over income.
-# Bad Homburg v.d.Höhe sits in Mietenstufe VII, where the Anlage 1 Höchstbetrag
-# is at its highest, so the gap between what the Richtlinie recognises and the
-# Angemessenheitsgrenze ohne schlüssiges Konzept is wide enough to read off a
-# slide.
-ENTITLEMENT_PROFILE_AGS = "06434001"
+# Pforzheim departs from the Angemessenheitsgrenze ohne schlüssiges Konzept by
+# about the tenth percentile of the Gemeinden whose Richtlinie is current, so
+# the gap is wide enough to read off a slide without being drawn from the tail
+# of the distribution. A Gemeinde at the median would leave a gap too small to
+# see, and the widest departures sit on Richtlinien several years old, whose
+# distance from the current Wohngeld parameters is partly a matter of vintage.
+ENTITLEMENT_PROFILE_AGS = "08231000"
 ENTITLEMENT_PROFILE_HOUSEHOLD_KEY = "single_35"
 
 # Spacing of the income points the claim is drawn on, in euro per month. It is
@@ -933,6 +935,10 @@ def plot_entitlement_profile(
         showarrow=False,
         xanchor="right",
         yanchor="top",
+        # Pulled inside the plot area; anchored flush to the paper edge the
+        # label touches the frame and reads as clipped.
+        xshift=-12,
+        yshift=-6,
         font={"size": FIGURE_ANNOTATION_FONT_SIZE},
     )
     figure.update_layout(

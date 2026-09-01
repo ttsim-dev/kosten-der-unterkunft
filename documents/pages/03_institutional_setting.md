@@ -20,10 +20,3 @@
 <br/>
 
 Every cap mentioned here is a **Bruttokaltmiete**.
-
-<!--
-The room knows Bürgergeld but not this delegation: the law leaves the number open, about
-four hundred Träger each answer it separately, and the case law supplies a construction
-where a Träger has answered it without a schlüssiges Konzept. That construction is the
-short name used throughout the rest of the deck — Grenze ohne schlüssiges Konzept.
--->

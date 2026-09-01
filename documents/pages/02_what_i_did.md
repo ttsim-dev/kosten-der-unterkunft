@@ -10,8 +10,3 @@
 
 - I therefore also analyse an alternative proxy of the cap, based on the Wohngeld
   formula
-
-<!--
-Two quantities, then: the local caps as they are actually published, and the one construction
-a model can compute without knowing the Gemeinde. Everything after this compares the two.
--->

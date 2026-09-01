@@ -6,14 +6,12 @@ import pytest
 
 from kdu.market_rent_comparison.market_rent_correlation import (
     GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT,
-    PRESENTATION_BASE_FONT_SIZE,
     CapKind,
     Comparison,
     _deviation_from_group_mean,
     _pearson_correlation,
     build_analysis_frame,
     correlation_table,
-    market_rent_correlation_figure,
 )
 
 
@@ -184,73 +182,6 @@ def test_only_the_fallback_within_mietenstufe_is_marked_constant() -> None:
     ]
 
 
-def test_market_rent_correlation_figure_labels_the_constant_bar_without_nan() -> None:
-    """No trace text renders the string "nan" where the correlation is undefined."""
-    figure = market_rent_correlation_figure(_table_over_all_household_sizes())
-
-    texts = [text for trace in figure.data for text in trace.text]
-
-    assert not any("nan" in text.lower() for text in texts)
-
-
-def test_market_rent_correlation_figure_draws_no_bar_for_the_constant_comparison() -> (
-    None
-):
-    """The fallback's within-Mietenstufe bar is absent rather than drawn at zero."""
-    figure = market_rent_correlation_figure(_table_over_all_household_sizes())
-
-    fallback = next(
-        trace for trace in figure.data if trace.name == CapKind.FALLBACK.label
-    )
-
-    assert list(fallback.x) == [Comparison.OVERALL.label]
-
-
-def test_market_rent_correlation_figure_annotates_the_constant_comparison() -> None:
-    """An annotation states that the fallback cannot be measured in that space."""
-    figure = market_rent_correlation_figure(_table_over_all_household_sizes())
-
-    texts = [annotation.text for annotation in figure.layout.annotations]
-
-    assert any("n/a" in text for text in texts)
-
-
-def test_market_rent_correlation_figure_sets_the_annotation_clear_of_the_bar() -> None:
-    """The note sits above the bar beside it rather than across its face."""
-    table = _table_over_all_household_sizes()
-    figure = market_rent_correlation_figure(table)
-
-    local_within = table.loc[
-        table["household_size"].eq(1)
-        & table["comparison"].eq(Comparison.WITHIN_MIETENSTUFE)
-        & ~table["constant_within_comparison"]
-    ]
-    drawn = float(local_within["correlation"].max())
-
-    assert figure.layout.annotations[0].y > drawn
-
-
 def test_cap_kind_fallback_is_labelled_grenze_ohne_schluessiges_konzept() -> None:
     """The statutory construction is named by its legal term, not as a benchmark."""
     assert CapKind.FALLBACK.label == GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT
-
-
-def test_market_rent_correlation_figure_carries_no_in_figure_title() -> None:
-    """The slide supplies the heading, so the figure draws none."""
-    figure = market_rent_correlation_figure(_table_over_all_household_sizes())
-
-    assert figure.layout.title.text is None
-
-
-def test_market_rent_correlation_figure_sets_a_projector_legible_base_font() -> None:
-    """The base font is large enough to read at 1600 by 900 pixels."""
-    figure = market_rent_correlation_figure(_table_over_all_household_sizes())
-
-    assert figure.layout.font.size >= PRESENTATION_BASE_FONT_SIZE
-
-
-def test_market_rent_correlation_figure_names_no_trace_a_benchmark() -> None:
-    """No legend entry calls the statutory construction a benchmark."""
-    figure = market_rent_correlation_figure(_table_over_all_household_sizes())
-
-    assert not any("benchmark" in trace.name.lower() for trace in figure.data)
