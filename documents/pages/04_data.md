@@ -1,13 +1,14 @@
-# The data we collected
+# The data I collected
 
-Gemeinden surviving each restriction, at household size one:
+- Started with a collection of Richtlinien on the Kreis level, collected by Harald Thomé
+  and filled the gaps
+- Number of Gemeinden I found data for:
 
 | restriction                                              | Gemeinden |
 |:---------------------------------------------------|----------:|
-| in the Gemeinde table                               |    10,980 |
-| with a collected local cap                          |     9,471 |
-| comparable with the Grenze ohne schlüssiges Konzept |     9,397 |
-| also carrying a Zensus 2022 rent                    |     9,281 |
+| # of Gemeinden                                      |    10,980 |
+| Local cap found                                     |     9,471 |
+| Was able to assign a Mietstufe                      |     9,397 |
 
 <br/>
 

@@ -6,7 +6,7 @@ the seven Mietenstufen, **0.457** across the sixteen Bundesländer.
 <img src="/kdu_vs_wohngeld/mietenstufe_dispersion.png" style="max-height: 300px; margin: 0 auto;" />
 
 Within a single Mietenstufe, caps still correlate with the Zensus 2022 rent measure at
-**ρ = 0.42** (n = 9,281), and the Grenze ohne schlüssiges Konzept holds one value per
+**p = 0.42** (n = 9,281), and the Grenze ohne schlüssiges Konzept holds one value per
 Mietenstufe.
 
 <!--

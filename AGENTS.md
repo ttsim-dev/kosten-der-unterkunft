@@ -12,7 +12,7 @@ and SGB XII departs from the Angemessenheitsgrenze ohne schlüssiges Konzept —
 statutory figure a tax-transfer model substitutes when it has no local one — and what
 that departure changes.
 
-The caps come from roughly 400 municipal Richtlinien collected by hand. The
+The caps come from roughly 400 municipal Richtlinien collected. The
 Angemessenheitsgrenze ohne schlüssiges Konzept is the sum of the Wohngeld-Höchstbetrag
 (Anlage 1 zu § 12 Absatz 1 WoGG) and the Klimakomponente (§ 12 Absatz 7 WoGG), times
 1.10 — the Sicherheitszuschlag the Bundessozialgericht prescribes where a Kreis has

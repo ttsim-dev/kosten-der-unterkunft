@@ -19,7 +19,7 @@
 
 <br/>
 
-Every cap here is a **Bruttokaltmiete**, and every cap is a **maximum, not a payment**.
+Every cap mentioned here is a **Bruttokaltmiete**.
 
 <!--
 The room knows Bürgergeld but not this delegation: the law leaves the number open, about

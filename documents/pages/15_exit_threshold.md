@@ -1,11 +1,8 @@
-# Where Bürgergeld stops
+# But in simulations it seems to be important.
 
 <img src="/eligibility/entitlement_profile.png" style="max-height: 320px; margin: 0.2rem auto;" />
 
-Recognising **less rent** pushes the point at which the household stops receiving
-Bürgergeld down by **more than the rent left unrecognised**: **226.82 €** less rent moves
-the exit **388 €** of gross income earlier, a ratio of **1.71** here. The **median** across
-Gemeinden is **1.84**.
+- Note that this has implications for other Transfers too (Vorrangprüfung WoGG, KiZ)
 
 <!--
 Never conflate the two ratios: 1.71 is Bad Homburg v.d.Höhe's own, 1.84 is the median of

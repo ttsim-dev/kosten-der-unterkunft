@@ -6,8 +6,6 @@
 
 <img src="/map/germany_map_mietenstufe.png" style="max-height: 355px; margin: 0 auto;" />
 
-This is everything GETTSIM could condition on today.
-
 <!--
 First of three stops in the live map, roughly a minute each. The Mietenstufe is the only
 regional classification a national model already has, and this is its resolution.

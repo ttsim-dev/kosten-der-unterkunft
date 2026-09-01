@@ -1,11 +1,10 @@
 # For anyone simulating entitlements
 
-**Gemeinde (AGS) available** — use the local cap. It is the only parameter that tracks
-local rents *within* a Mietenstufe (ρ = 0.42).
+**Gemeinde (AGS) available** — use the local cap.
 
-**Only a Kreis available** — caps vary *within* a Kreis: **210 of 400 Kreise** publish more
-than one distinct cap (denominator: every Kreis in the Gemeinde table; the same 210 out of
-the 358 Kreise with any collected cap).
+**Only a Kreis available** — caps vary *within* a Kreis: **210 of 400 Kreise** publish
+more than one distinct cap (denominator: every Kreis in the Gemeinde table; the same 210
+out of the 358 Kreise with any collected cap).
 
 **Neither, the usual case** — use the Grenze ohne schlüssiges Konzept, and know it sits
 about **20 €** above the median Gemeinde.

@@ -1,4 +1,4 @@
-# Aggregate non-recognition is small — and says little
+# How important is this in reality? I don't know.
 
 - **BA Wohnkostenstatistik**, single Bedarfsgemeinschaften, **398 Jobcenter**.
 
@@ -8,8 +8,6 @@
   90 % losing nothing and 10 % losing a great deal.
 
 - The extent to which the ceiling **binds at the household level is unknown**.
-
-- **Only simulation identifies which households it binds for.**
 
 <!--
 This is the number everyone in the room is about to raise, so it is raised here and then

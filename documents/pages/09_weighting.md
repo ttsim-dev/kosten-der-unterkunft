@@ -1,15 +1,14 @@
-# Weighting by caseload widens the gap, and never reverses it
+# Weighting by caseload widens the gap
 
 Local cap minus the Grenze ohne schlüssiges Konzept, single adult, € per month:
 
 | statistic                                                       |   value |
 |:-----------------------------------------------------------------|--------:|
-| median Gemeinde                                                   | −20.22 |
-| mean over Gemeinden                                               | −11.39 |
-| mean over Bedarfsgemeinschaften, allocated by population          | −47.30 |
-| every within-Kreis placement lies inside                          | −65.84 to −26.23 |
+| Median                                                            | −20.22 |
+| Mean                                                              | −11.39 |
+| Mean, weighted by # Bedarfsgemeinschaften                         | −47.30 |
 
-Only the magnitude depends on the allocation assumption; the direction does not.
+Number of Bedarfsgemeinschaften is per Kreis. Assumption: evenly spread across Gemeinden.
 
 <!--
 Where within a Kreis its Bedarfsgemeinschaften live is not observed — the Bundesagentur
