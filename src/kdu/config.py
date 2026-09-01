@@ -264,11 +264,17 @@ INCOME_GRID = IncomeGrid()
 
 
 class WeightingScheme(StrEnum):
-    """The two weights a distribution is reported under.
+    """The weights a distribution is reported under.
 
     Which one applies is decided per result rather than by a standing rule:
     a claim about how administrative rules differ takes the Gemeinde weight, a
     claim about what claimants face takes the Bedarfsgemeinschaft weight.
+
+    The three Bedarfsgemeinschaft schemes read the same published Kreis stocks
+    and differ only in where inside the Kreis they place them, which is the one
+    thing the Bundesagentur does not publish. The population allocation is the
+    one reported as a result; the two extreme allocations are there to say how
+    much of the result rests on that assumption.
     """
 
     GEMEINDE_UNWEIGHTED = "gemeinde_unweighted"
@@ -285,6 +291,27 @@ class WeightingScheme(StrEnum):
     which assumes a claimant rate constant within the Kreis. The denominator
     runs over every Gemeinde of the Kreis, including those whose cap is unknown,
     so an unknown cap withholds its share rather than passing it on.
+    """
+    BEDARFSGEMEINSCHAFT_ALLOCATED_TO_LOWEST_DEPARTURE = (
+        "n_bedarfsgemeinschaften_allocated_to_lowest_departure"
+    )
+    """The whole Kreis caseload placed on the Gemeinde furthest below the benchmark.
+
+    The lower end of the bracket around
+    `BEDARFSGEMEINSCHAFT_ALLOCATED_BY_POPULATION`: it assumes every claimant of
+    a Kreis lives where that Kreis's cap departs least favourably from the
+    Wohngeld-based benchmark. No placement of the published Kreis stock across
+    that Kreis's Gemeinden produces a lower mean departure. Gemeinden tied at
+    that departure share the stock equally.
+    """
+    BEDARFSGEMEINSCHAFT_ALLOCATED_TO_HIGHEST_DEPARTURE = (
+        "n_bedarfsgemeinschaften_allocated_to_highest_departure"
+    )
+    """The whole Kreis caseload placed on the Gemeinde furthest above the benchmark.
+
+    The upper end of the same bracket, assuming every claimant of a Kreis lives
+    where that Kreis's cap departs most favourably from the Wohngeld-based
+    benchmark. Gemeinden tied at that departure share the stock equally.
     """
 
 
@@ -369,7 +396,7 @@ PRESENTATION_MAP_MEASURES: tuple[str, ...] = (
     "cap_ratio",
 )
 
-# How far a local cap departs from the statutory fallback, and how much
+# How far a local cap departs from the Wohngeld-based benchmark, and how much
 # variation the Mietenstufe leaves unaccounted for.
 DATA_CATALOG.add(
     "cap_comparison_distribution",
@@ -380,8 +407,16 @@ DATA_CATALOG.add(
     KDU_VS_WOHNGELD / "cap_ratio_spread_distribution.html",
 )
 DATA_CATALOG.add(
+    "cap_difference_distribution",
+    KDU_VS_WOHNGELD / "cap_difference_distribution.html",
+)
+DATA_CATALOG.add(
     "cap_comparison_distribution_png",
     KDU_VS_WOHNGELD / "cap_comparison_distribution.png",
+)
+DATA_CATALOG.add(
+    "cap_difference_distribution_png",
+    KDU_VS_WOHNGELD / "cap_difference_distribution.png",
 )
 DATA_CATALOG.add(
     "cap_ratio_spread_distribution_png",

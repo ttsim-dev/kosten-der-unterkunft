@@ -5,6 +5,8 @@ import pandas as pd
 import pytest
 
 from kdu.weighting import (
+    ExtremeAllocation,
+    allocate_group_total_to_extreme_value,
     weighted_mean,
     weighted_quantile,
     weighted_share,
@@ -75,3 +77,102 @@ def test_weighted_quantile_rejects_a_probability_outside_the_unit_interval() -> 
     """A quantile above one is a caller error, not a value to extrapolate."""
     with pytest.raises(ValueError, match="must lie in"):
         weighted_quantile(pd.Series([1.0]), pd.Series([1.0]), 1.5)
+
+
+def test_allocate_group_total_to_the_lowest_value() -> None:
+    """A group total of 10 lands entirely on the row holding the smallest value."""
+    weights = allocate_group_total_to_extreme_value(
+        values=pd.Series([3.0, 1.0, 2.0]),
+        groups=pd.Series(["a", "a", "a"]),
+        group_totals=pd.Series([10.0, 10.0, 10.0]),
+        extreme=ExtremeAllocation.LOWEST,
+    )
+    assert weights.tolist() == pytest.approx([0.0, 10.0, 0.0])
+
+
+def test_allocate_group_total_to_the_highest_value() -> None:
+    """A group total of 10 lands entirely on the row holding the largest value."""
+    weights = allocate_group_total_to_extreme_value(
+        values=pd.Series([3.0, 1.0, 2.0]),
+        groups=pd.Series(["a", "a", "a"]),
+        group_totals=pd.Series([10.0, 10.0, 10.0]),
+        extreme=ExtremeAllocation.HIGHEST,
+    )
+    assert weights.tolist() == pytest.approx([10.0, 0.0, 0.0])
+
+
+def test_allocate_group_total_splits_a_tie_equally() -> None:
+    """Two rows tied at the smallest value take five each out of a total of 10."""
+    weights = allocate_group_total_to_extreme_value(
+        values=pd.Series([1.0, 1.0, 4.0]),
+        groups=pd.Series(["a", "a", "a"]),
+        group_totals=pd.Series([10.0, 10.0, 10.0]),
+        extreme=ExtremeAllocation.LOWEST,
+    )
+    assert weights.tolist() == pytest.approx([5.0, 5.0, 0.0])
+
+
+def test_allocate_group_total_treats_each_group_separately() -> None:
+    """Each group's own total goes to that group's own extreme row."""
+    weights = allocate_group_total_to_extreme_value(
+        values=pd.Series([3.0, 1.0, 8.0, 6.0]),
+        groups=pd.Series(["a", "a", "b", "b"]),
+        group_totals=pd.Series([10.0, 10.0, 20.0, 20.0]),
+        extreme=ExtremeAllocation.LOWEST,
+    )
+    assert weights.tolist() == pytest.approx([0.0, 10.0, 0.0, 20.0])
+
+
+def test_allocate_group_total_conserves_every_group_total() -> None:
+    """Allocation moves a total within its group and never creates or destroys any."""
+    weights = allocate_group_total_to_extreme_value(
+        values=pd.Series([3.0, 1.0, 8.0, 6.0]),
+        groups=pd.Series(["a", "a", "b", "b"]),
+        group_totals=pd.Series([10.0, 10.0, 20.0, 20.0]),
+        extreme=ExtremeAllocation.HIGHEST,
+    )
+    assert weights.sum() == pytest.approx(30.0)
+
+
+def test_allocate_group_total_skips_a_row_without_a_value() -> None:
+    """A row whose value is missing is no candidate, so the total passes it by."""
+    weights = allocate_group_total_to_extreme_value(
+        values=pd.Series([np.nan, 4.0]),
+        groups=pd.Series(["a", "a"]),
+        group_totals=pd.Series([10.0, 10.0]),
+        extreme=ExtremeAllocation.LOWEST,
+    )
+    assert weights.tolist() == pytest.approx([0.0, 10.0])
+
+
+def test_allocate_group_total_leaves_a_valueless_group_at_zero() -> None:
+    """A group in which no row carries a value allocates nothing at all."""
+    weights = allocate_group_total_to_extreme_value(
+        values=pd.Series([np.nan, np.nan]),
+        groups=pd.Series(["a", "a"]),
+        group_totals=pd.Series([10.0, 10.0]),
+        extreme=ExtremeAllocation.LOWEST,
+    )
+    assert weights.tolist() == pytest.approx([0.0, 0.0])
+
+
+def test_allocate_group_total_leaves_an_unreported_group_at_zero() -> None:
+    """A group whose total is unreported allocates nothing rather than guessing."""
+    weights = allocate_group_total_to_extreme_value(
+        values=pd.Series([1.0, 4.0]),
+        groups=pd.Series(["a", "a"]),
+        group_totals=pd.Series([np.nan, np.nan]),
+        extreme=ExtremeAllocation.LOWEST,
+    )
+    assert weights.tolist() == pytest.approx([0.0, 0.0])
+
+
+def test_allocate_group_total_rejects_two_totals_for_one_group() -> None:
+    """Two tied rows carrying different group totals cannot both be that group's."""
+    with pytest.raises(ValueError, match="changed the total"):
+        allocate_group_total_to_extreme_value(
+            values=pd.Series([1.0, 1.0]),
+            groups=pd.Series(["a", "a"]),
+            group_totals=pd.Series([10.0, 20.0]),
+            extreme=ExtremeAllocation.LOWEST,
+        )
