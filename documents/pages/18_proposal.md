@@ -7,9 +7,9 @@ Three options:
    size.
 
 1. **Be paternalistic** - GETTSIM provides an empirical default **or** applies the
-   $$(WoGG-Höchstbetrag + Klimakomponente) × 1.10$$ rule. Con: Which default? Empirical
-   average weighted by number of Bedarfsgemeinschaften (likely to move)? WoGG rule
-   (which we know is, on average, not accurate)?
+   Wohngeld proxy rule. Con: Which default? Empirical average weighted by number of
+   Bedarfsgemeinschaften (likely to move)? WoGG rule (which we know is, on average, not
+   accurate)?
 
 1. **Be user-friendly** - Provide a mapping from Kreis/Gemeinde to the caps. Con: Not
    maintainable with the resources we have.
