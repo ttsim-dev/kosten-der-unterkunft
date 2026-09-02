@@ -1,7 +1,6 @@
 # For anyone simulating Kosten der Unterkunft
 
-- **Have the Gemeinde (AGS)? Use its own cap** — not the Kreis's. 210 of 358 Kreise
-  publish more than one.
+- **Have the Gemeinde (AGS)? Use its own cap**
 
 - **No Gemeinde? Cross Mietstufe with Bundesland.** Use an empirical Bundesland x
   Mietstufe weighted average.

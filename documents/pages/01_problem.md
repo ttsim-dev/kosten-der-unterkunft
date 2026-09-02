@@ -10,8 +10,3 @@
 
 - Relevant not only for transfer size but also transfer type (SGB II / XII vs.
   Wohngeld), especially takeup simulations.
-
-<br/>
-
-One identical single-person household, moved across Germany:
-**minimum 272.64 € · median 430.50 € · maximum 911.00 €** per month.
