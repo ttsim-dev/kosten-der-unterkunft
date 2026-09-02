@@ -36,12 +36,14 @@ version.source = "vcs"
 
 [tool.pixi.dependencies]
 gettsim = ">=1.3,<2"
+nodejs = "*"
 numpy = "*"
 openpyxl = "*"
 pandas = "*"
 plotly = "*"
 prek = "*"
 python = "~=3.14.0"
+python-kaleido = ">=1.3,<2"
 pyarrow = ">=24.0.0,<25"
 pytask = "*"
 [tool.pixi.environments]
@@ -65,6 +67,12 @@ fetch-gemeinde-population = "python scripts/fetch_gemeinde_population.py"
 fetch-wohnkostenstatistik = "python scripts/fetch_ba_wohnkosten.py"
 fetch-zensus-mieten = "python scripts/fetch_zensus_mieten.py"
 pytask = "pytask"
+view-pres = { cmd = "npx slidev documents/presentation.md", description = "View the presentation in the browser" }
+# `--per-slide` renders one slide per browser page. Without it the deck's map
+# renderings — three PNGs of a few megabytes each — are dropped from all but one
+# slide, which then exports blank, heading included. The deck has no cross-slide
+# links, which is the only thing `--per-slide` gives up.
+export-pres = { cmd = "npx slidev export documents/presentation.md --output documents/presentation.pdf --per-slide", description = "Export the presentation to PDF" }
 [tool.pixi.workspace]
 channels = [ "conda-forge" ]
 platforms = [ "linux-64", "osx-64", "osx-arm64", "win-64" ]

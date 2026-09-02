@@ -41,7 +41,8 @@ def recognised_bruttokaltmiete_eur_per_month(
     """Apply a Bruttokaltmiete cap to an actual rent.
 
     One scenario passes the local KdU-Obergrenze as `cap`, the other the
-    Wohngeld fallback. Every other legal and economic parameter is identical, so
+    Angemessenheitsgrenze ohne schlüssiges Konzept. Every other legal and
+    economic parameter is identical, so
     the whole difference between the two scenarios enters through this argument.
 
     Args:

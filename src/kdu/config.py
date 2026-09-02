@@ -9,7 +9,8 @@ This module exports:
 - paths — `SRC`, `ROOT`, `DATA`, `BLD`, the per-package result directories,
   and `corpus_root`
 - vintages — `ANALYSIS_DATE` and `LEGAL_VINTAGE`
-- the benchmark — `WOHNGELD_FALLBACK_MARKUP`
+- the Angemessenheitsgrenze ohne schlüssiges Konzept —
+  `WOHNGELD_FALLBACK_MARKUP`
 - populations of interest — `HOUSEHOLD_SIZES` and `MODEL_HOUSEHOLDS`
 - analysis parameters — `INCOME_GRID`, `WeightingScheme`
 - `DATA_CATALOG` — every committed input and every generated artefact
@@ -95,8 +96,8 @@ class LegalVintage:
 # The one vintage the whole project is computed at. The two WoGG dates differ
 # because Anlage 1 was last fortgeschrieben in 2025 while the Klimakomponente
 # and the Heizkostenentlastung still carry their Wohngeld-Plus wording of 2023;
-# both are the Fassung in force on the Analysestichtag, so the benchmark rests
-# on one consistent Rechtsstand.
+# both are the Fassung in force on the Analysestichtag, so the Grenze ohne
+# schlüssiges Konzept rests on one consistent Rechtsstand.
 LEGAL_VINTAGE = LegalVintage(
     wohngeld_rechtsstand=2026,
     sgb_rechtsstand=2026,
@@ -112,14 +113,23 @@ HOUSEHOLD_SIZES: tuple[int, ...] = (1, 2, 3, 4, 5)
 # The statutory Mietenstufen I to VII of § 12 WoGG, as integers.
 MIETENSTUFEN: tuple[int, ...] = (1, 2, 3, 4, 5, 6, 7)
 
-# The markup on the Anlage 1 Höchstbetrag that defines the project's benchmark.
+# The markup applied to the sum of the Anlage 1 Höchstbetrag and the
+# Klimakomponente, which together define the Angemessenheitsgrenze ohne
+# schlüssiges Konzept.
 #
-# Where a Kreis publishes no schlüssiges Konzept, BSG case law fixes the
-# Angemessenheitsgrenze at the Wohngeld table plus a Sicherheitszuschlag of
-# 10 %. That fallback, not the bare Höchstbetrag, is the single benchmark every
-# result is measured against: it is the figure a Träger is legally required to
-# apply when it has nothing of its own, so it is the standard a local rule
-# departs from.
+# Where a Kreis publishes no schlüssiges Konzept, the Angemessenheitsgrenze is
+# the Wohngeld table plus a Sicherheitszuschlag of 10 % (BSG, 12.12.2013 -
+# B 4 AS 87/12 R). That judgment predates the Klimakomponente of § 12 Absatz 7
+# WoGG, in force since 1.1.2023, and so cannot speak to it.
+#
+# Whether the Klimakomponente enters the fallback is unresolved at the
+# Bundessozialgericht. Instance courts consistently add it to the Anlage 1
+# value first and apply the 10 % to the sum (SG Aurich 23.09.2025 -
+# S 55 AS 99/25 ER; SG Oldenburg 20.06.2024 - S 37 AS 506/23; LSG
+# Berlin-Brandenburg 17.01.2024 - L 32 AS 1179/23 B ER), reasoning that the
+# Sicherheitszuschlag absorbs the backward-looking nature of the Wohngeld table
+# while the Klimakomponente addresses future price development, so the one does
+# not already contain the other. This project follows that ordering.
 WOHNGELD_FALLBACK_MARKUP = 1.10
 
 
@@ -256,17 +266,56 @@ INCOME_GRID = IncomeGrid()
 
 
 class WeightingScheme(StrEnum):
-    """The two weights a distribution is reported under.
+    """The weights a distribution is reported under.
 
     Which one applies is decided per result rather than by a standing rule:
     a claim about how administrative rules differ takes the Gemeinde weight, a
     claim about what claimants face takes the Bedarfsgemeinschaft weight.
+
+    The three Bedarfsgemeinschaft schemes read the same published Kreis stocks
+    and differ only in where inside the Kreis they place them, which is the one
+    thing the Bundesagentur does not publish. The population allocation is the
+    one reported as a result; the two extreme allocations are there to say how
+    much of the result rests on that assumption.
     """
 
     GEMEINDE_UNWEIGHTED = "gemeinde_unweighted"
     """One Gemeinde, one weight: what the administrative landscape looks like."""
-    BEDARFSGEMEINSCHAFT = "bedarfsgemeinschaft"
-    """Weighted by SGB II Bedarfsgemeinschaften at the household size in question."""
+    BEDARFSGEMEINSCHAFT_ALLOCATED_BY_POPULATION = (
+        "n_bedarfsgemeinschaften_allocated_by_population"
+    )
+    """The observed Kreis caseload, allocated across Gemeinden by resident population.
+
+    The Bundesagentur publishes Bedarfsgemeinschaften at Jobcenter and therefore
+    Kreis level only, so where within a Kreis its claimants live is not
+    observed. The weight distributes the Kreis stock at a given household size
+    over that Kreis's Gemeinden in proportion to their resident population,
+    which assumes a claimant rate constant within the Kreis. The denominator
+    runs over every Gemeinde of the Kreis, including those whose cap is unknown,
+    so an unknown cap withholds its share rather than passing it on.
+    """
+    BEDARFSGEMEINSCHAFT_ALLOCATED_TO_LOWEST_DEPARTURE = (
+        "n_bedarfsgemeinschaften_allocated_to_lowest_departure"
+    )
+    """The whole Kreis caseload placed on the least favourable Gemeinde.
+
+    The lower end of the bracket around
+    `BEDARFSGEMEINSCHAFT_ALLOCATED_BY_POPULATION`: it assumes every claimant of
+    a Kreis lives where that Kreis's cap departs least favourably from the
+    Angemessenheitsgrenze ohne schlüssiges Konzept. No placement of the
+    published Kreis stock across that Kreis's Gemeinden produces a lower mean
+    departure. Gemeinden tied at
+    that departure share the stock equally.
+    """
+    BEDARFSGEMEINSCHAFT_ALLOCATED_TO_HIGHEST_DEPARTURE = (
+        "n_bedarfsgemeinschaften_allocated_to_highest_departure"
+    )
+    """The whole Kreis caseload placed on the most favourable Gemeinde.
+
+    The upper end of the same bracket, assuming every claimant of a Kreis lives
+    where that Kreis's cap departs most favourably from the Grenze ohne
+    schlüssiges Konzept. Gemeinden tied at that departure share the stock equally.
+    """
 
 
 def corpus_root() -> Path:
@@ -341,19 +390,48 @@ MAP_MEASURES: tuple[str, ...] = (
     "share_of_stock_above_cap",
 )
 
-# How far a local cap departs from the statutory fallback, and how much
-# variation the Mietenstufe leaves unaccounted for.
+# The measures the presentation deck shows as static images. A slide holds one
+# map at a time, and the map segment shows these three views in this order: the
+# statutory Mietenstufe, the local cap, and the ratio between the two.
+PRESENTATION_MAP_MEASURES: tuple[str, ...] = (
+    "mietenstufe",
+    "kdu_cap",
+    "cap_ratio",
+)
+
+# How far a local cap departs from the Grenze ohne schlüssiges Konzept, and
+# how much variation the Mietenstufe leaves unaccounted for.
 DATA_CATALOG.add(
     "cap_comparison_distribution",
     KDU_VS_WOHNGELD / "cap_comparison_distribution.html",
 )
 DATA_CATALOG.add(
-    "cap_ratio_spread_distribution",
-    KDU_VS_WOHNGELD / "cap_ratio_spread_distribution.html",
+    "cap_ratio_by_household_size",
+    KDU_VS_WOHNGELD / "cap_ratio_by_household_size.html",
+)
+DATA_CATALOG.add(
+    "cap_difference_distribution",
+    KDU_VS_WOHNGELD / "cap_difference_distribution.html",
+)
+DATA_CATALOG.add(
+    "cap_comparison_distribution_png",
+    KDU_VS_WOHNGELD / "cap_comparison_distribution.png",
+)
+DATA_CATALOG.add(
+    "cap_difference_distribution_png",
+    KDU_VS_WOHNGELD / "cap_difference_distribution.png",
+)
+DATA_CATALOG.add(
+    "cap_ratio_by_household_size_png",
+    KDU_VS_WOHNGELD / "cap_ratio_by_household_size.png",
 )
 DATA_CATALOG.add(
     "mietenstufe_dispersion_figure",
     KDU_VS_WOHNGELD / "mietenstufe_dispersion.html",
+)
+DATA_CATALOG.add(
+    "mietenstufe_dispersion_figure_png",
+    KDU_VS_WOHNGELD / "mietenstufe_dispersion.png",
 )
 DATA_CATALOG.add("cap_comparison_table", KDU_VS_WOHNGELD / "cap_comparison.csv")
 DATA_CATALOG.add(
@@ -368,12 +446,20 @@ DATA_CATALOG.add(
     MARKET_RENT_COMPARISON / "market_rent_correlation.html",
 )
 DATA_CATALOG.add(
+    "market_rent_correlation_figure_png",
+    MARKET_RENT_COMPARISON / "market_rent_correlation.png",
+)
+DATA_CATALOG.add(
     "market_rent_correlation_table",
     MARKET_RENT_COMPARISON / "market_rent_correlation.csv",
 )
 DATA_CATALOG.add(
     "share_of_stock_above_cap_figure",
     MARKET_RENT_COMPARISON / "share_of_stock_above_cap.html",
+)
+DATA_CATALOG.add(
+    "share_of_stock_above_cap_figure_png",
+    MARKET_RENT_COMPARISON / "share_of_stock_above_cap.png",
 )
 DATA_CATALOG.add(
     "share_of_stock_above_cap_table",
@@ -383,12 +469,28 @@ DATA_CATALOG.add(
     "share_of_stock_above_cap_gemeinde",
     MARKET_RENT_COMPARISON / "share_of_stock_above_cap_gemeinde.parquet",
 )
+DATA_CATALOG.add(
+    "cap_over_bestandsmiete",
+    MARKET_RENT_COMPARISON / "cap_over_bestandsmiete.html",
+)
+DATA_CATALOG.add(
+    "cap_over_bestandsmiete_png",
+    MARKET_RENT_COMPARISON / "cap_over_bestandsmiete.png",
+)
+DATA_CATALOG.add(
+    "cap_over_bestandsmiete_table",
+    MARKET_RENT_COMPARISON / "cap_over_bestandsmiete.csv",
+)
 
 # How far the choice of cap moves the gross income at which a household
 # leaves the transfer system.
 DATA_CATALOG.add(
     "exit_threshold_distribution",
     ELIGIBILITY / "exit_threshold_distribution.html",
+)
+DATA_CATALOG.add(
+    "exit_threshold_distribution_png",
+    ELIGIBILITY / "exit_threshold_distribution.png",
 )
 DATA_CATALOG.add("exit_threshold_table", ELIGIBILITY / "exit_threshold.csv")
 DATA_CATALOG.add(
@@ -408,6 +510,11 @@ for _measure in MAP_MEASURES:
     DATA_CATALOG.add(
         f"germany_map_{_measure}",
         MAP / f"germany_map_{_measure}.html",
+    )
+for _measure in PRESENTATION_MAP_MEASURES:
+    DATA_CATALOG.add(
+        f"germany_map_{_measure}_png",
+        MAP / f"germany_map_{_measure}.png",
     )
 
 

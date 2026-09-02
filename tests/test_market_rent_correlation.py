@@ -2,8 +2,10 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from kdu.market_rent_comparison.market_rent_correlation import (
+    GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT,
     CapKind,
     Comparison,
     _deviation_from_group_mean,
@@ -13,26 +15,40 @@ from kdu.market_rent_comparison.market_rent_correlation import (
 )
 
 
-def _frame(rents: list[float], mietenstufen: list[int]) -> tuple[pd.DataFrame, ...]:
+def _frame(
+    rents: list[float],
+    mietenstufen: list[int],
+    household_sizes: tuple[int, ...] = (1,),
+) -> tuple[pd.DataFrame, ...]:
     """Return caps, fallback and rents for Gemeinden with the given rent levels."""
     n = len(rents)
     ags = [f"0100{index:04d}" for index in range(n)]
+    repeated_ags = [value for _ in household_sizes for value in ags]
+    repeated_sizes = [size for size in household_sizes for _ in ags]
+    repeated_rents = [rent for _ in household_sizes for rent in rents]
+    repeated_stufen = [stufe for _ in household_sizes for stufe in mietenstufen]
     kdu_caps = pd.DataFrame(
         {
-            "ags": ags,
-            "household_size": [1] * n,
+            "ags": repeated_ags,
+            "household_size": repeated_sizes,
             # The cap is a fixed multiple of the market rent, so the two are
             # perfectly correlated in logarithms.
-            "kdu_cap": [rent * 100.0 for rent in rents],
-            "max_area_sqm": [50.0] * n,
+            "kdu_cap": [
+                rent * 100.0 * size
+                for rent, size in zip(repeated_rents, repeated_sizes, strict=True)
+            ],
+            "max_area_sqm": [50.0] * len(repeated_ags),
         },
     )
     wohngeld_fallback = pd.DataFrame(
         {
-            "ags": ags,
-            "household_size": [1] * n,
-            "mietenstufe": mietenstufen,
-            "wohngeld_fallback_cap": [300.0 + 50.0 * stufe for stufe in mietenstufen],
+            "ags": repeated_ags,
+            "household_size": repeated_sizes,
+            "mietenstufe": repeated_stufen,
+            "wohngeld_fallback_cap": [
+                (300.0 + 50.0 * stufe) * size
+                for stufe, size in zip(repeated_stufen, repeated_sizes, strict=True)
+            ],
         },
     )
     zensus_rents = pd.DataFrame(
@@ -56,12 +72,25 @@ def test_pearson_correlation_is_one_for_an_exact_increasing_relation() -> None:
     assert _pearson_correlation(values, 3.0 * values) == 1.0
 
 
-def test_pearson_correlation_is_zero_when_one_series_does_not_vary() -> None:
-    """A constant series carries no information, so the correlation is zero."""
-    assert (
-        _pearson_correlation(np.array([2.0, 2.0, 2.0]), np.array([1.0, 5.0, 9.0]))
-        == 0.0
-    )
+@pytest.mark.parametrize("position", [0, 1])
+def test_pearson_correlation_is_nan_when_one_series_does_not_vary(
+    position: int,
+) -> None:
+    """A constant series leaves the correlation undefined, whichever side it is on."""
+    series = [np.array([2.0, 2.0, 2.0]), np.array([1.0, 5.0, 9.0])]
+    assert np.isnan(_pearson_correlation(series[position], series[1 - position]))
+
+
+def test_pearson_correlation_is_nan_when_one_series_varies_only_by_rounding() -> None:
+    """Residuals of the size of floating-point rounding are not a measurable series."""
+    dust = np.array([1.0, -1.0, 0.0]) * 1e-16
+    assert np.isnan(_pearson_correlation(dust, np.array([1.0, 5.0, 9.0])))
+
+
+def test_pearson_correlation_of_the_rounding_witness_is_not_exactly_constant() -> None:
+    """The rounding witness really does have a non-zero standard deviation."""
+    dust = np.array([1.0, -1.0, 0.0]) * 1e-16
+    assert np.std(dust) > 0.0
 
 
 def test_build_analysis_frame_drops_gemeinden_without_a_measured_rent() -> None:
@@ -93,35 +122,66 @@ def test_correlation_table_reports_a_perfect_correlation_for_a_proportional_cap(
     np.testing.assert_allclose(overall["correlation"].to_numpy(), [1.0], atol=1e-12)
 
 
-def test_correlation_table_reports_zero_within_mietenstufe_for_the_fallback() -> None:
-    """The fallback is a step function of the Mietenstufe, so it cannot vary there."""
-    kdu_caps, wohngeld_fallback, zensus_rents = _frame(
-        [5.0, 6.0, 7.0, 9.0],
-        [1, 1, 2, 2],
-    )
-
-    table = correlation_table(
-        build_analysis_frame(kdu_caps, wohngeld_fallback, zensus_rents),
-    )
-    within = table.loc[
+def _fallback_within_mietenstufe(table: pd.DataFrame) -> pd.DataFrame:
+    """Return the rows comparing the fallback to market rents within a Mietenstufe."""
+    return table.loc[
         (table["cap"] == CapKind.FALLBACK)
         & (table["comparison"] == Comparison.WITHIN_MIETENSTUFE)
     ]
 
-    assert within["correlation"].to_numpy().tolist() == [0.0]
-    assert within["mechanically_zero"].to_numpy().tolist() == [True]
 
-
-def test_only_the_fallback_within_mietenstufe_is_marked_mechanical() -> None:
-    """The local cap is free to vary within a Mietenstufe, so its zero would be real."""
+def _table_over_all_household_sizes() -> pd.DataFrame:
+    """Return the correlation table for four Gemeinden at five household sizes."""
     kdu_caps, wohngeld_fallback, zensus_rents = _frame(
-        [5.0, 6.0, 7.0, 9.0], [1, 1, 2, 2]
+        [5.0, 6.0, 7.0, 9.0],
+        [1, 1, 2, 2],
+        household_sizes=(1, 2, 3, 4, 5),
     )
-
-    table = correlation_table(
+    return correlation_table(
         build_analysis_frame(kdu_caps, wohngeld_fallback, zensus_rents),
     )
 
-    assert table.loc[table["mechanically_zero"], "cap"].unique().tolist() == [
+
+def test_correlation_table_reports_no_correlation_within_mietenstufe_for_fallback() -> (
+    None
+):
+    """The fallback cannot vary within a Mietenstufe, so no correlation is defined."""
+    within = _fallback_within_mietenstufe(_table_over_all_household_sizes())
+
+    assert np.isnan(within["correlation"].to_numpy(dtype=float)).all()
+
+
+def test_correlation_table_flags_the_fallback_as_constant_at_every_household_size() -> (
+    None
+):
+    """Every household size carries the flag, not only the single-person household."""
+    within = _fallback_within_mietenstufe(_table_over_all_household_sizes())
+
+    assert within["constant_within_comparison"].to_numpy().tolist() == [True] * 5
+
+
+def test_correlation_table_reports_a_finite_correlation_for_the_local_cap_within() -> (
+    None
+):
+    """The local cap varies within a Mietenstufe, so its correlation is a number."""
+    table = _table_over_all_household_sizes()
+    within = table.loc[
+        (table["cap"] == CapKind.LOCAL)
+        & (table["comparison"] == Comparison.WITHIN_MIETENSTUFE)
+    ]
+
+    assert np.isfinite(within["correlation"].to_numpy(dtype=float)).all()
+
+
+def test_only_the_fallback_within_mietenstufe_is_marked_constant() -> None:
+    """The local cap is free to vary within a Mietenstufe, so its value is measured."""
+    table = _table_over_all_household_sizes()
+
+    assert table.loc[table["constant_within_comparison"], "cap"].unique().tolist() == [
         CapKind.FALLBACK,
     ]
+
+
+def test_cap_kind_fallback_is_labelled_grenze_ohne_schluessiges_konzept() -> None:
+    """The statutory construction is named by its legal term, not as a benchmark."""
+    assert CapKind.FALLBACK.label == GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT

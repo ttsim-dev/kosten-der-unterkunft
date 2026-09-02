@@ -35,8 +35,32 @@ Three properties govern how the resulting number may be read.
   from the Zensus 2022 Nettokaltmiete, which the Bundesagentur figures do not
   enter, evaluated at the Wohnfläche the local rule admits.
 
-The Bundesagentur reports by Jobcenter while caps are set per Gemeinde, and 209
-of 357 Kreise publish Gemeinde-specific caps rather than one Kreis-wide figure.
+The same record also grades the two ceilings against each other. Both the
+collected local cap and the Angemessenheitsgrenze ohne schlüssiges Konzept are
+correlated, in logs, with the mean Bruttokaltmiete the Jobcenter recognises, and
+for each the median ratio of recognised amount to cap and the share of Jobcenter
+whose mean recognised amount exceeds the cap are reported. Two further
+properties govern how those numbers may be read.
+
+- **A correlation in levels is a weaker check than it looks.** Rents, caps and
+  recognised amounts all rise together across Germany, so most of the
+  correlation comes from that common gradient. An error shared by many Kreise at
+  once — a Rechtsstand read one year late, a Wohnfläche table applied to the
+  wrong Bundesland, the Klimakomponente omitted throughout — shifts every cap in
+  the same direction and leaves the correlation almost untouched. What the
+  correlation does detect is an idiosyncratic misreading of a single Kreis's
+  Richtlinie, which shows up as one Kreis off its own line.
+- **The sign restriction is the sharper check.** A cap is an upper limit on what
+  may be recognised, so the mean recognised amount of a Jobcenter should sit
+  below its cap. That is a restriction the data can violate, and a mean above
+  the cap is either a misread cap or one of the documented ways a Jobcenter
+  exceeds it — a Härtefallregelung, a Karenzzeit in the first year of the
+  Bedarf, or a household granted more than the table amount. A share above the
+  cap of a few percent is consistent with those; a large one is not, and would
+  indicate the extraction rather than the exceptions.
+
+The Bundesagentur reports by Jobcenter while caps are set per Gemeinde, and 210
+of 358 Kreise publish Gemeinde-specific caps rather than one Kreis-wide figure.
 Aggregating to the Jobcenter therefore requires a choice, and this module takes
 the population-weighted mean over the Gemeinden of the Kreis: the cap faced by
 the average resident, which is the closest available match to the population
@@ -56,7 +80,14 @@ VALIDATION_COLUMNS: tuple[str, ...] = (
     "household_size",
     "jobcenter",
     "jobcenter_with_market_rent",
+    "jobcenter_with_both_caps",
     "correlation_market_pressure_non_recognised",
+    "correlation_log_kdu_cap_log_recognised",
+    "correlation_log_wohngeld_fallback_log_recognised",
+    "median_recognised_over_kdu_cap",
+    "median_recognised_over_wohngeld_fallback",
+    "share_recognised_above_kdu_cap",
+    "share_recognised_above_wohngeld_fallback",
     "mean_kdu_cap_eur",
     "mean_market_rent_eur",
     "mean_actual_bruttokaltmiete_eur",
@@ -67,7 +98,11 @@ VALIDATION_COLUMNS: tuple[str, ...] = (
 )
 
 # Columns holding counts of Jobcenter rather than euro amounts or shares.
-_COUNT_COLUMNS: tuple[str, ...] = ("jobcenter", "jobcenter_with_market_rent")
+_COUNT_COLUMNS: tuple[str, ...] = (
+    "jobcenter",
+    "jobcenter_with_market_rent",
+    "jobcenter_with_both_caps",
+)
 
 # Fewer Jobcenter than this leave a correlation undefined.
 MIN_JOBCENTER_FOR_CORRELATION = 2
@@ -95,6 +130,10 @@ def validate_against_wohnkostenstatistik(
     _fail_if_columns_missing(
         wohnkostenstatistik,
         ("jobcenter_id", "district_ags", "household_size"),
+    )
+    _fail_if_columns_missing(
+        district_market_pressure,
+        ("kdu_cap", "wohngeld_fallback_cap", "market_rent_eur"),
     )
     fail_if_key_not_unique(district_market_pressure, ["district_ags", "household_size"])
 
@@ -129,6 +168,7 @@ def build_district_market_pressure(
     kdu_caps: pd.DataFrame,
     gemeinden: pd.DataFrame,
     zensus_rents: pd.DataFrame,
+    wohngeld_fallback: pd.DataFrame,
 ) -> pd.DataFrame:
     """Aggregate caps and market rents from Gemeinden to the Kreis they sit in.
 
@@ -144,14 +184,20 @@ def build_district_market_pressure(
         gemeinden: One row per Gemeinde, with `district_ags` and `population`.
         zensus_rents: One row per Gemeinde, with
             `nettokaltmiete_eur_per_sqm_mean`.
+        wohngeld_fallback: One row per Gemeinde and household size, with
+            `wohngeld_fallback_cap`.
 
     Returns:
         One row per Kreis and household size, with `district_ags`,
-        `household_size`, `kdu_cap`, `max_area_sqm`,
+        `household_size`, `kdu_cap`, `wohngeld_fallback_cap`, `max_area_sqm`,
         `nettokaltmiete_eur_per_sqm` and `market_rent_eur`.
 
     """
     _fail_if_columns_missing(kdu_caps, ("ags", "household_size", "kdu_cap"))
+    _fail_if_columns_missing(
+        wohngeld_fallback,
+        ("ags", "household_size", "wohngeld_fallback_cap"),
+    )
     fail_if_key_not_unique(gemeinden, ["ags"])
     fail_if_key_not_unique(zensus_rents, ["ags"])
 
@@ -165,24 +211,35 @@ def build_district_market_pressure(
         zensus_rents.loc[:, ["ags", "nettokaltmiete_eur_per_sqm_mean"]],
         on=["ags"],
     )
+    with_fallback = merge_without_duplicating(
+        with_rents,
+        wohngeld_fallback.loc[:, ["ags", "household_size", "wohngeld_fallback_cap"]],
+        on=["ags", "household_size"],
+    )
 
     by_district = ["district_ags", "household_size"]
     aggregated = pd.DataFrame(
         {
             "kdu_cap": grouped_weighted_mean(
-                with_rents,
+                with_fallback,
                 "kdu_cap",
                 "population",
                 by_district,
             ),
+            "wohngeld_fallback_cap": grouped_weighted_mean(
+                with_fallback,
+                "wohngeld_fallback_cap",
+                "population",
+                by_district,
+            ),
             "max_area_sqm": grouped_weighted_mean(
-                with_rents,
+                with_fallback,
                 "max_area_sqm",
                 "population",
                 by_district,
             ),
             "nettokaltmiete_eur_per_sqm": grouped_weighted_mean(
-                with_rents,
+                with_fallback,
                 "nettokaltmiete_eur_per_sqm_mean",
                 "population",
                 by_district,
@@ -237,13 +294,42 @@ def _summarise_household_size(group: pd.DataFrame) -> pd.Series:
     comparable = group.dropna(
         subset=["log_market_rent_over_cap", "non_recognised_share"],
     )
+    both_caps = group.dropna(
+        subset=["kdu_cap", "wohngeld_fallback_cap", "recognised_bruttokaltmiete"],
+    )
+    log_recognised = _log(both_caps["recognised_bruttokaltmiete"])
     return pd.Series(
         {
             "jobcenter": len(group),
             "jobcenter_with_market_rent": len(comparable),
+            "jobcenter_with_both_caps": len(both_caps),
             "correlation_market_pressure_non_recognised": _correlation(
                 comparable["log_market_rent_over_cap"],
                 comparable["non_recognised_share"],
+            ),
+            "correlation_log_kdu_cap_log_recognised": _correlation(
+                _log(both_caps["kdu_cap"]),
+                log_recognised,
+            ),
+            "correlation_log_wohngeld_fallback_log_recognised": _correlation(
+                _log(both_caps["wohngeld_fallback_cap"]),
+                log_recognised,
+            ),
+            "median_recognised_over_kdu_cap": _median_ratio(
+                both_caps["recognised_bruttokaltmiete"],
+                both_caps["kdu_cap"],
+            ),
+            "median_recognised_over_wohngeld_fallback": _median_ratio(
+                both_caps["recognised_bruttokaltmiete"],
+                both_caps["wohngeld_fallback_cap"],
+            ),
+            "share_recognised_above_kdu_cap": _share_above(
+                both_caps["recognised_bruttokaltmiete"],
+                both_caps["kdu_cap"],
+            ),
+            "share_recognised_above_wohngeld_fallback": _share_above(
+                both_caps["recognised_bruttokaltmiete"],
+                both_caps["wohngeld_fallback_cap"],
             ),
             "mean_kdu_cap_eur": _mean(group["kdu_cap"]),
             "mean_market_rent_eur": _mean(group["market_rent_eur"]),
@@ -283,6 +369,32 @@ def _weighted_mean(values: pd.Series, weights: pd.Series) -> float:
     return float(
         np.average(numeric_values[usable], weights=numeric_weights[usable]),
     )
+
+
+def _median_ratio(numerator: pd.Series, denominator: pd.Series) -> float:
+    """Return the median of `numerator / denominator` over Jobcenter, one each."""
+    return float(_ratio(numerator, denominator).median())
+
+
+def _share_above(numerator: pd.Series, denominator: pd.Series) -> float:
+    """Return the share of Jobcenter whose `numerator` exceeds their `denominator`."""
+    ratio = _ratio(numerator, denominator).dropna()
+    if ratio.empty:
+        return float("nan")
+    return float((ratio > 1.0).mean())
+
+
+def _ratio(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
+    """Return `numerator / denominator`, missing where the divisor is not positive."""
+    top = pd.to_numeric(numerator, errors="coerce")
+    bottom = pd.to_numeric(denominator, errors="coerce")
+    return (top / bottom).where(bottom > 0).astype(float)
+
+
+def _log(values: pd.Series) -> pd.Series:
+    """Return the natural logarithm, missing where the value is not positive."""
+    numeric = pd.to_numeric(values, errors="coerce")
+    return np.log(numeric.where(numeric > 0).astype(float))
 
 
 def _log_ratio(numerator: pd.Series, denominator: pd.Series) -> pd.Series:

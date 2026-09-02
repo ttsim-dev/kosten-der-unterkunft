@@ -1,4 +1,4 @@
-"""Compare the local KdU cap and the statutory fallback against market rents.
+"""Compare local KdU caps and the Grenze ohne schlüssiges Konzept with market rents.
 
 Both modules read the Zensus 2022 rents of each Gemeinde's rented housing
 stock, which is the only rent measurement available at the resolution at

@@ -9,14 +9,15 @@ Much of this is based on Harald Thomé's
 collection of Jobcenter and Sozialamt directives on angemessene Unterkunftskosten.
 
 Under SGB II and SGB XII, roughly 400 Kreise and kreisfreie Städte each publish their
-own Angemessenheitsgrenze for Unterkunftskosten. This repository collects the
-local rules, measures the errors researchers make when using rule of thumb fallbacks,
-and reports how those errors change the gross income at which a household leaves the
+own Angemessenheitsgrenze for Unterkunftskosten. This repository collects the local
+rules, measures the errors researchers make when using rule of thumb fallbacks, and
+reports how those errors change the gross income at which a household leaves the
 transfer system.
 
-The benchmark throughout is the **Wohngeld-Höchstbetrag times 1.10** — the standard the
-Bundessozialgericht prescribes where a Kreis has published no schlüssiges Konzept, and
-therefore the legally correct comparator rather than an arbitrary one.
+The benchmark throughout is the **Wohngeld-Höchstbetrag plus the Klimakomponente, the
+sum times 1.10**. The Sicherheitszuschlag of 10 % is the standard the
+Bundessozialgericht prescribes where a Kreis has published no schlüssiges Konzept (BSG,
+12.12.2013 - B 4 AS 87/12 R).
 
 ## Installation and use
 
@@ -27,7 +28,6 @@ pixi run pytest
 pixi run ty
 pixi run prek run --all-files
 ```
-
 
 ## The map
 
@@ -71,3 +71,22 @@ and the share of the local rented stock priced above the cap.
 The caps are the maximum regularly recognisable Unterkunftsbedarf, **not** payments.
 Actual costs are recognised where they are angemessen, so entitlement depends further on
 actual rent, income, household composition, and Karenz- and Härtefallregelungen.
+
+## The presentation
+
+`documents/presentation.md` is the [Slidev](https://sli.dev) deck for the GETTSIM
+workshop, split into one file per section under `documents/pages/`.
+
+```bash
+pixi install
+npm install
+pixi run pytask        # the deck embeds figures from bld/, so build them first
+pixi run view-pres
+```
+
+The deck references figures in `bld/` by relative path, and `bld/` is not in version
+control. `pixi run view-pres` therefore fails until `pixi run pytask` has run.
+
+`pixi run export-pres` writes `documents/presentation.pdf`. It drives a headless
+Chromium, which npm does not install by default; run
+`npm install-scripts approve playwright-chromium` once beforehand.

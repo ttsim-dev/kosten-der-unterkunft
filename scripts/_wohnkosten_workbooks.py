@@ -31,6 +31,7 @@ import pandas as pd
 HOUSEHOLD_SIZE_SHEET = "Tabelle 1b HH Miete"
 BG_TYPE_SHEET = "Tabelle 2b BG Miete"
 
+# Column order of `Tabelle 1b HH Miete`, first column being `Insgesamt`.
 HOUSEHOLD_SIZE_CATEGORIES: tuple[str, ...] = (
     "total",
     "1_person",
@@ -40,8 +41,8 @@ HOUSEHOLD_SIZE_CATEGORIES: tuple[str, ...] = (
     "5_persons",
     "6_or_more_persons",
 )
-"""Column order of `Tabelle 1b HH Miete`, first column being `Insgesamt`."""
 
+# Column order of `Tabelle 2b BG Miete`, first column being `Insgesamt`.
 BG_TYPE_CATEGORIES: tuple[str, ...] = (
     "total",
     "single",
@@ -51,10 +52,9 @@ BG_TYPE_CATEGORIES: tuple[str, ...] = (
     "couple_1_child",
     "couple_2_children",
 )
-"""Column order of `Tabelle 2b BG Miete`, first column being `Insgesamt`."""
 
+# The two cost concepts the BA reports. Neither is a disbursed benefit.
 COST_BASES: tuple[str, ...] = ("actual", "recognised")
-"""The two cost concepts the BA reports. Neither is a disbursed benefit."""
 
 COST_COMPONENTS: tuple[str, ...] = (
     "kdu_total",
@@ -398,8 +398,8 @@ class _RowContext:
         return None
 
 
+# Indentation width the BA uses for rows that belong to the cost concept itself.
 _TOP_LEVEL_INDENT = 5
-"""Indentation width the BA uses for rows that belong to the cost concept itself."""
 
 
 def _categories_for(breakdown: str) -> tuple[str, ...]:

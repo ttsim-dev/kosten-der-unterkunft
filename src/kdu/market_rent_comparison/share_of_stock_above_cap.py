@@ -6,10 +6,22 @@ and dwellings priced above the ceiling. The share on the far side of that
 line is what the cap means for someone looking for somewhere to live, and it
 does not depend on the cap binding on anybody's current rent.
 
-The share is computed for the local KdU cap and for the statutory fallback
+The share is computed for the local KdU cap and for the Angemessenheitsgrenze
+ohne schlüssiges Konzept — (Wohngeld-Höchstbetrag + Klimakomponente) × 1.10 —
 separately. The quantity that matters is the difference between the two: it
 is the error a tax-transfer simulation makes about the housing stock
-available to a household when it substitutes the fallback for the local rule.
+available to a household when it substitutes the statutory construction for
+the local rule.
+
+Four statistics are reported at each household size, and none of them can be
+derived from the others: the median share above the local cap, the median share
+above the Grenze ohne schlüssiges Konzept, the median **absolute** per-Gemeinde
+difference between the two shares, and the median **signed** per-Gemeinde
+difference. The median absolute difference is a typical magnitude of the change
+in either direction; the median signed difference is the typical direction. A
+median does not distribute over a difference, so neither of the two difference
+statistics is the difference of the two medians, and no reported figure may be
+obtained by subtracting other reported figures.
 
 The 2022 Zensus reports, for each Gemeinde, how many rented dwellings fall
 into each Nettokaltmiete band of two euro per square metre. A cap is stated
@@ -51,12 +63,36 @@ import plotly.io as pio
 
 from kdu.joins import merge_without_duplicating
 
-pio.templates.default = "plotly_dark"
+pio.templates.default = "plotly_white"
 
-# Grey carries the statutory fallback, the accent colour the local cap.
-FALLBACK_COLOUR = "#8c8c8c"
-LOCAL_CAP_COLOUR = "#4c9be8"
-DIFFERENCE_COLOUR = "#e8a34c"
+# Short display name for (Wohngeld-Höchstbetrag + Klimakomponente) × 1.10,
+# used wherever space is tight: axis titles, legends and table rows. The full
+# name, "Angemessenheitsgrenze ohne schlüssiges Konzept", introduces the
+# quantity in prose. Neither form is ever abbreviated further.
+GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT = "Grenze ohne schlüssiges Konzept"
+
+# Row labels for the two difference statistics. Each names what it holds,
+# because a row reading only "difference" would be read as a signed shift and
+# would also invite subtracting the two reported levels from one another.
+ABSOLUTE_DIFFERENCE_LABEL = "Absolute difference within a Gemeinde"
+SIGNED_DIFFERENCE_LABEL = (
+    "Signed difference within a Gemeinde "
+    "(local KdU cap minus Grenze ohne schlüssiges Konzept)"
+)
+
+# Font sizes of a figure, chosen so that the smallest text stays readable when
+# the PNG is projected at 1600 by 900 logical pixels.
+PRESENTATION_BASE_FONT_SIZE = 20
+AXIS_TITLE_FONT_SIZE = 24
+ANNOTATION_FONT_SIZE = 20
+
+# Grey carries the Grenze ohne schlüssiges Konzept, the accent colour the local cap.
+FALLBACK_COLOUR = "#5f6368"
+LOCAL_CAP_COLOUR = "#1f6fb2"
+DIFFERENCE_COLOUR = "#9c5000"
+
+# Gridlines separate the bars without competing with them.
+GRID_COLOUR = "#d9d9d9"
 
 # Column carrying the kalte Betriebskosten a Gemeinde is charged, in euro per
 # square metre and month.
@@ -116,7 +152,8 @@ def build_gemeinde_shares(
 
     Args:
         kdu_caps: The local caps, keyed `ags` by `household_size`.
-        wohngeld_fallback: The statutory fallback, keyed the same way.
+        wohngeld_fallback: The Grenze ohne schlüssiges Konzept, keyed the
+            same way.
         zensus_rents: The Zensus rents and band counts, keyed `ags`.
         gemeinden: Gemeinde metadata, keyed `ags`, supplying `district_ags`.
         wohnkostenstatistik: The Bundesagentur record, supplying the kalte
@@ -124,8 +161,11 @@ def build_gemeinde_shares(
 
     Returns:
         One row per `ags` and `household_size`, carrying the two thresholds in
-        euro per square metre, the share of dwellings priced above each, and
-        the absolute difference between the two shares.
+        euro per square metre, the share of dwellings priced above each, the
+        signed difference between the two shares — the local cap's share minus
+        the Grenze ohne schlüssiges Konzept's, so a positive value means the
+        local cap prices more of the stock above itself — and its absolute
+        value.
 
     """
     frame = _join_caps_to_rent_bands(kdu_caps, wohngeld_fallback, zensus_rents)
@@ -236,19 +276,37 @@ def share_above_threshold(
 def summarise_shares(gemeinde_shares: pd.DataFrame) -> pd.DataFrame:
     """Summarise the two shares priced above the cap, and their difference, by size.
 
+    Four quantities are reported at every household size, each summarised over
+    Gemeinden in its own right:
+
+    - the share of the local rented stock priced above the local KdU cap;
+    - the share of that same stock priced above the Angemessenheitsgrenze ohne
+      schlüssiges Konzept;
+    - the absolute per-Gemeinde difference between those two shares, which is a
+      typical magnitude of the change in either direction;
+    - the signed per-Gemeinde difference, local cap minus Grenze ohne
+      schlüssiges Konzept, which is the typical direction of that change.
+
+    The four are separately computed statistics and a reader must not obtain
+    any one of them by subtracting the others. In particular neither difference
+    row is the difference of the two level rows: a median does not distribute
+    over a difference, and the absolute row additionally stops departures in
+    opposite directions from cancelling, so it is at least as large as the
+    signed row in magnitude and usually strictly larger.
+
     Args:
         gemeinde_shares: The output of {func}`build_gemeinde_shares`.
 
     Returns:
-        One row per household size and cap, plus one row per household size
-        for the absolute difference between the two, each with the median and
-        the tenth and ninetieth percentiles across Gemeinden.
+        One row per household size and quantity, each with the median and the
+        tenth and ninetieth percentiles across Gemeinden.
 
     """
     quantities = {
         "Local KdU cap": "share_above_local_kdu_cap",
-        "Statutory fallback": "share_above_wohngeld_fallback_cap",
-        "Absolute difference": "absolute_share_difference",
+        GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT: ("share_above_wohngeld_fallback_cap"),
+        ABSOLUTE_DIFFERENCE_LABEL: "absolute_share_difference",
+        SIGNED_DIFFERENCE_LABEL: "share_difference",
     }
     household_sizes = sorted(
         int(size) for size in gemeinde_shares["household_size"].unique()
@@ -267,20 +325,29 @@ def summarise_shares(gemeinde_shares: pd.DataFrame) -> pd.DataFrame:
 
 
 def share_of_stock_above_cap_figure(gemeinde_shares: pd.DataFrame) -> go.Figure:
-    """Plot the distribution of the two shares and of their difference.
+    """Plot the distribution of the two shares priced above the cap.
+
+    The figure carries no title, because whatever embeds it supplies the
+    heading, and its fonts are sized for projection at 1600 by 900 pixels.
 
     Args:
         gemeinde_shares: The output of {func}`build_gemeinde_shares`.
 
     Returns:
-        A figure with the two priced-above-the-cap distributions above and the
-        per-Gemeinde difference between them below, at household size one.
+        A figure overlaying the share of the local rented stock priced above
+        the local KdU cap and the share priced above the Grenze ohne
+        schlüssiges Konzept, at household size one, annotated with the median
+        per-Gemeinde absolute difference between the two.
 
     """
     single = gemeinde_shares.query("household_size == 1")
     figure = go.Figure()
     for label, column, colour in (
-        ("Statutory fallback", "share_above_wohngeld_fallback_cap", FALLBACK_COLOUR),
+        (
+            GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT,
+            "share_above_wohngeld_fallback_cap",
+            FALLBACK_COLOUR,
+        ),
         ("Local KdU cap", "share_above_local_kdu_cap", LOCAL_CAP_COLOUR),
     ):
         figure.add_histogram(
@@ -303,20 +370,25 @@ def share_of_stock_above_cap_figure(gemeinde_shares: pd.DataFrame) -> go.Figure:
         ),
         showarrow=False,
         align="right",
-        font={"size": 12, "color": DIFFERENCE_COLOUR},
+        font={"size": ANNOTATION_FONT_SIZE, "color": DIFFERENCE_COLOUR},
     )
     figure.update_layout(
-        title=(
-            "Share of the local rented stock priced above the cap "
-            "(single-person household)"
-        ),
+        font={"size": PRESENTATION_BASE_FONT_SIZE},
         xaxis_title="Share of rented dwellings above the cap, per cent",
         yaxis_title="Gemeinden",
         barmode="overlay",
-        legend={"orientation": "h", "y": -0.18},
+        legend={
+            "orientation": "h",
+            "y": -0.18,
+            "font": {"size": PRESENTATION_BASE_FONT_SIZE},
+        },
     )
-    figure.update_xaxes(showgrid=False)
-    figure.update_yaxes(showgrid=True, gridcolor="#333333")
+    figure.update_xaxes(showgrid=False, title_font={"size": AXIS_TITLE_FONT_SIZE})
+    figure.update_yaxes(
+        showgrid=True,
+        gridcolor=GRID_COLOUR,
+        title_font={"size": AXIS_TITLE_FONT_SIZE},
+    )
     return figure
 
 

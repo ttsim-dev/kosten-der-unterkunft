@@ -1,1 +1,1 @@
-"""How local KdU caps compare with the statutory Wohngeld fallback."""
+"""How local KdU caps compare with the Grenze ohne schlüssiges Konzept."""

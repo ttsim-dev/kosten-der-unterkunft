@@ -7,6 +7,7 @@ import pandas as pd
 from pytask import Product
 
 from kdu.config import catalog_path
+from kdu.figure_export import write_presentation_png
 from kdu.market_rent_comparison.share_of_stock_above_cap import (
     build_gemeinde_shares,
     share_of_stock_above_cap_figure,
@@ -21,6 +22,7 @@ WOHNKOSTENSTATISTIK = catalog_path("wohnkostenstatistik")
 GEMEINDE_SHARES = catalog_path("share_of_stock_above_cap_gemeinde")
 SHARES_TABLE = catalog_path("share_of_stock_above_cap_table")
 SHARES_FIGURE = catalog_path("share_of_stock_above_cap_figure")
+SHARES_FIGURE_PNG = catalog_path("share_of_stock_above_cap_figure_png")
 
 
 def task_share_of_stock_above_cap(
@@ -32,6 +34,7 @@ def task_share_of_stock_above_cap(
     gemeinde_file: Annotated[Path, Product] = GEMEINDE_SHARES,
     table_file: Annotated[Path, Product] = SHARES_TABLE,
     figure_file: Annotated[Path, Product] = SHARES_FIGURE,
+    figure_png_file: Annotated[Path, Product] = SHARES_FIGURE_PNG,
 ) -> None:
     """Count the rented dwellings each cap prices above itself, per Gemeinde."""
     gemeinde_shares = build_gemeinde_shares(
@@ -47,3 +50,4 @@ def task_share_of_stock_above_cap(
     gemeinde_shares.to_parquet(gemeinde_file, index=False)
     summary.to_csv(table_file, index=False)
     figure.write_html(figure_file, include_plotlyjs="cdn")
+    write_presentation_png(figure, figure_png_file)

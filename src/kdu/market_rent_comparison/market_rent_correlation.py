@@ -1,26 +1,28 @@
 """Whether each cap tracks the local rent level of the Gemeinde it applies to.
 
 The Mietenstufe of § 12 WoGG exists to place a Gemeinde on a national rent
-gradient, and the statutory fallback inherits that placement. The local KdU
-cap is set by the Kreis without reference to the Mietenstufe. This module
-measures how closely each of the two follows the mean Nettokaltmiete per
+gradient, and the Angemessenheitsgrenze ohne schlüssiges Konzept —
+(Wohngeld-Höchstbetrag + Klimakomponente) × 1.10 — inherits that placement. The
+local KdU cap is set by the Kreis without reference to the Mietenstufe. This
+module measures how closely each of the two follows the mean Nettokaltmiete per
 square metre that the 2022 Zensus records for the same Gemeinde.
 
 The comparison is deliberately asymmetric, and the asymmetry is the result:
 
-- **Across the whole country** the two caps are close, and the statutory
-  fallback follows market rents marginally more closely than the local cap
-  does. The Mietenstufe performs the task it was designed for.
-- **Within a single Mietenstufe** the fallback cannot vary at all at a given
-  household size: it is a step function of the Mietenstufe, so its
-  correlation with market rents there is zero by construction. The local cap
-  is unconstrained in that space and still follows the local rent level.
+- **Across the whole country** the two caps are close, and the Grenze ohne
+  schlüssiges Konzept follows market rents marginally more closely than the
+  local cap does. The Mietenstufe performs the task it was designed for.
+- **Within a single Mietenstufe** the Grenze ohne schlüssiges Konzept cannot
+  vary at all at a given household size: it is a step function of the
+  Mietenstufe, so it has no dispersion left there and its correlation with
+  market rents is undefined rather than zero. The local cap is unconstrained in
+  that space and still follows the local rent level.
 
-The second row is therefore not a failing of the fallback measured against
-something it could have done. It states that the local caps carry variation
-within a Mietenstufe which the fallback cannot carry at all, and that this
-variation corresponds to something measured in the housing stock rather than
-to administrative noise.
+The second row is therefore not a failing of the Grenze ohne schlüssiges
+Konzept measured against something it could have done. It states that the local
+caps carry variation within a Mietenstufe which the Grenze ohne schlüssiges
+Konzept cannot carry at all, and that this variation corresponds to something
+measured in the housing stock rather than to administrative noise.
 
 Every function here is a pure function of the frames handed to it; the pytask
 wrapper in {mod}`kdu.market_rent_comparison.task_market_rent_correlation`
@@ -37,11 +39,40 @@ import plotly.io as pio
 
 from kdu.joins import merge_without_duplicating
 
-pio.templates.default = "plotly_dark"
+pio.templates.default = "plotly_white"
 
-# Grey carries the statutory fallback, the accent colour the local cap.
-FALLBACK_COLOUR = "#8c8c8c"
-LOCAL_CAP_COLOUR = "#4c9be8"
+# Short display name for (Wohngeld-Höchstbetrag + Klimakomponente) × 1.10,
+# used wherever space is tight: axis titles, legends and table rows. The full
+# name, "Angemessenheitsgrenze ohne schlüssiges Konzept", introduces the
+# quantity in prose. Neither form is ever abbreviated further.
+GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT = "Grenze ohne schlüssiges Konzept"
+
+# Font sizes of a figure, chosen so that the smallest text stays readable when
+# the PNG is projected at 1600 by 900 logical pixels.
+PRESENTATION_BASE_FONT_SIZE = 20
+AXIS_TITLE_FONT_SIZE = 24
+ANNOTATION_FONT_SIZE = 18
+
+# Grey carries the Grenze ohne schlüssiges Konzept, the accent colour the local cap.
+FALLBACK_COLOUR = "#5f6368"
+LOCAL_CAP_COLOUR = "#1f6fb2"
+
+# Gridlines separate the bars without competing with them.
+GRID_COLOUR = "#d9d9d9"
+
+# How far above the bar beside it the note on the unmeasurable comparison sits,
+# in correlation points, so the sentence stands on the plot ground.
+CONSTANT_NOTE_CLEARANCE = 0.06
+
+# Standard deviation below which a series counts as carrying no variation. An
+# absolute tolerance, applied to the standard deviation of series of logarithms.
+# The two magnitudes it separates are far apart: a cap that is constant in the
+# data leaves residuals of the order of 1e-16 after its group mean is
+# subtracted, while the smallest departure the caps can actually record — one
+# cent on a cap of a few hundred euro — is of the order of 1e-5 in logarithms.
+# Any value between those bounds decides the same cases; this one sits four
+# orders above the rounding and seven below the signal.
+CONSTANT_SERIES_TOLERANCE = 1e-12
 
 
 class CapKind(StrEnum):
@@ -50,7 +81,10 @@ class CapKind(StrEnum):
     LOCAL = "local_kdu_cap"
     """The maximum rent the responsible Kreis recognises."""
     FALLBACK = "wohngeld_fallback_cap"
-    """The Wohngeld Höchstbetrag raised by the Sicherheitszuschlag."""
+    """The Angemessenheitsgrenze ohne schlüssiges Konzept.
+
+    Höchstbetrag and Klimakomponente, raised by the Sicherheitszuschlag.
+    """
 
     @property
     def column(self) -> str:
@@ -59,8 +93,12 @@ class CapKind(StrEnum):
 
     @property
     def label(self) -> str:
-        """English label for figures and tables."""
-        return "Local KdU cap" if self is CapKind.LOCAL else "Statutory fallback"
+        """Label for figures and tables."""
+        return (
+            "Local KdU cap"
+            if self is CapKind.LOCAL
+            else GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT
+        )
 
 
 class Comparison(StrEnum):
@@ -92,14 +130,18 @@ class CorrelationRow:
     comparison: Comparison
     """Whether the national rent gradient is included or removed."""
     correlation: float
-    """Pearson correlation of the two series in logarithms."""
+    """Pearson correlation of the two series in logarithms.
+
+    NaN where the cap is constant in the comparison space, because a series with
+    no dispersion leaves the coefficient undefined rather than zero.
+    """
     n_gemeinden: int
     """Gemeinden entering this correlation."""
-    mechanically_zero: bool
-    """Whether the cap is constant in this space, forcing the correlation to zero.
+    constant_within_comparison: bool
+    """Whether the cap is constant in this space, leaving the correlation undefined.
 
-    True for the statutory fallback within a Mietenstufe: at a fixed household
-    size the fallback is a function of the Mietenstufe alone, so removing the
+    True for the Grenze ohne schlüssiges Konzept within a Mietenstufe: at a fixed
+    household size it is a function of the Mietenstufe alone, so removing the
     Mietenstufe mean removes all of its variation.
     """
 
@@ -113,7 +155,8 @@ def build_analysis_frame(
 
     Args:
         kdu_caps: The local caps, keyed `ags` by `household_size`.
-        wohngeld_fallback: The statutory fallback, keyed the same way.
+        wohngeld_fallback: The Grenze ohne schlüssiges Konzept, keyed the same
+            way.
         zensus_rents: The Zensus rents, keyed `ags`.
 
     Returns:
@@ -169,8 +212,8 @@ def correlation_table(frame: pd.DataFrame) -> pd.DataFrame:
 
     Returns:
         One row per household size, cap and comparison, with the correlation,
-        the number of Gemeinden, and whether the correlation is zero by
-        construction.
+        the number of Gemeinden, and whether the cap is constant in that
+        comparison space and the correlation therefore undefined.
 
     """
     household_sizes = sorted(int(size) for size in frame["household_size"].unique())
@@ -189,20 +232,26 @@ def correlation_table(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def market_rent_correlation_figure(table: pd.DataFrame) -> go.Figure:
-    """Plot the four correlations at household size one as grouped bars.
+    """Plot the measured correlations at household size one as grouped bars.
+
+    The figure carries no title, because whatever embeds it supplies the
+    heading, and its fonts are sized for projection at 1600 by 900 pixels.
 
     Args:
         table: The output of {func}`correlation_table`.
 
     Returns:
-        A figure contrasting the two caps in both comparison spaces, with the
-        fallback's within-Mietenstufe bar marked as zero by construction.
+        A figure contrasting the two caps in both comparison spaces. Where a cap
+        is constant in a space no bar is drawn, and an annotation states that
+        the correlation is unavailable rather than zero.
 
     """
     single = table.query("household_size == 1")
     figure = go.Figure()
     for cap in CapKind:
-        rows = single.loc[single["cap"] == cap].sort_values("comparison")
+        rows = single.loc[
+            (single["cap"] == cap) & ~single["constant_within_comparison"]
+        ].sort_values("comparison")
         figure.add_bar(
             x=[Comparison(value).label for value in rows["comparison"]],
             y=rows["correlation"],
@@ -210,35 +259,58 @@ def market_rent_correlation_figure(table: pd.DataFrame) -> go.Figure:
             marker_color=(
                 LOCAL_CAP_COLOUR if cap is CapKind.LOCAL else FALLBACK_COLOUR
             ),
-            text=[f"{value:.2f}" for value in rows["correlation"]],
+            text=[_bar_label(value) for value in rows["correlation"]],
             textposition="outside",
         )
     figure.add_annotation(
         x=Comparison.WITHIN_MIETENSTUFE.label,
-        y=0.05,
+        y=_constant_note_height(single),
         text=(
-            "The fallback is a step function of the Mietenstufe,<br>"
-            "so it cannot vary in this space at all."
+            "n/a — constant within class<br>"
+            f"The {GRENZE_OHNE_SCHLUESSIGES_KONZEPT_SHORT} is a step function<br>"
+            "of the Mietenstufe, so it cannot vary in this space at all."
         ),
         showarrow=False,
         align="left",
-        font={"size": 11, "color": FALLBACK_COLOUR},
+        font={"size": ANNOTATION_FONT_SIZE, "color": FALLBACK_COLOUR},
         yanchor="bottom",
     )
     figure.update_layout(
-        title=(
-            "Correlation with the mean Nettokaltmiete per square metre "
-            "(Zensus 2022, single-person household)"
-        ),
+        font={"size": PRESENTATION_BASE_FONT_SIZE},
         yaxis_title="Correlation in logarithms",
         barmode="group",
         bargap=0.35,
         showlegend=True,
-        legend={"orientation": "h", "y": -0.15},
+        legend={
+            "orientation": "h",
+            "y": -0.15,
+            "font": {"size": PRESENTATION_BASE_FONT_SIZE},
+        },
     )
-    figure.update_yaxes(range=[0, 0.8], showgrid=True, gridcolor="#333333")
+    figure.update_yaxes(
+        range=[0, 0.8],
+        showgrid=True,
+        gridcolor=GRID_COLOUR,
+        title_font={"size": AXIS_TITLE_FONT_SIZE},
+    )
     figure.update_xaxes(showgrid=False, title=None)
     return figure
+
+
+def _constant_note_height(single: pd.DataFrame) -> float:
+    """Return the height at which the note on the missing bar clears the drawn one.
+
+    The note belongs to the comparison in which one cap cannot be measured, and
+    the other cap's bar occupies that same slot. Setting the note above that bar
+    keeps the sentence on the white plot ground rather than across a filled bar.
+    """
+    drawn = single.loc[
+        (single["comparison"] == Comparison.WITHIN_MIETENSTUFE)
+        & ~single["constant_within_comparison"],
+        "correlation",
+    ]
+    tallest = float(drawn.max()) if drawn.notna().any() else 0.0
+    return tallest + CONSTANT_NOTE_CLEARANCE
 
 
 def _correlation_row(
@@ -260,10 +332,15 @@ def _correlation_row(
         comparison=comparison,
         correlation=_pearson_correlation(log_cap, log_rent),
         n_gemeinden=len(group),
-        mechanically_zero=(
+        constant_within_comparison=(
             cap is CapKind.FALLBACK and comparison is Comparison.WITHIN_MIETENSTUFE
         ),
     )
+
+
+def _bar_label(correlation: float) -> str:
+    """Return the number printed above a bar, or a marker where there is none."""
+    return "n/a" if np.isnan(correlation) else f"{correlation:.2f}"
 
 
 def _deviation_from_group_mean(
@@ -276,7 +353,28 @@ def _deviation_from_group_mean(
 
 
 def _pearson_correlation(first: np.ndarray, second: np.ndarray) -> float:
-    """Return the Pearson correlation, or zero where one series is constant."""
-    if np.std(first) == 0 or np.std(second) == 0:
-        return 0.0
+    """Return the Pearson correlation, or NaN where one series is constant.
+
+    A constant series has no dispersion to correlate, so the coefficient is a
+    ratio of zero to zero and is undefined rather than zero. Constancy is
+    decided against `CONSTANT_SERIES_TOLERANCE` because a series that is
+    constant in the data is not exactly constant in floating point: subtracting
+    a group mean from log caps of order six leaves residuals of the order of
+    the double-precision spacing at that magnitude, and feeding those to
+    {func}`numpy.corrcoef` would report the correlation of rounding error as a
+    result.
+
+    Args:
+        first: The first series.
+        second: The second series, of the same length.
+
+    Returns:
+        The Pearson correlation of the two series, or NaN where either of them
+        is constant to within the tolerance.
+
+    """
+    if np.isclose(
+        np.std(first), 0.0, rtol=0.0, atol=CONSTANT_SERIES_TOLERANCE
+    ) or np.isclose(np.std(second), 0.0, rtol=0.0, atol=CONSTANT_SERIES_TOLERANCE):
+        return float("nan")
     return float(np.corrcoef(first, second)[0, 1])

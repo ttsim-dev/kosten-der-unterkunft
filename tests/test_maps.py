@@ -13,7 +13,7 @@ from kdu.maps import (
     build_map_frame,
     describe_household_size,
 )
-from kdu.measures import MEASURES, compute_colour_range, get_measure
+from kdu.measures import compute_colour_range, get_measure
 
 HOUSEHOLD_SIZES = (1, 2, 3, 4, 5)
 
@@ -62,7 +62,7 @@ def kdu_caps() -> pd.DataFrame:
 
 @pytest.fixture
 def wohngeld_fallback() -> pd.DataFrame:
-    """A benchmark of 400 euro at every size, so every ratio is a round number."""
+    """The Grenze ohne schlüssiges Konzept at 400 euro, so ratios are round."""
     return pd.DataFrame(
         {
             "ags": ["01001000"] * 5 + ["01002000"] * 5,
@@ -119,10 +119,10 @@ def test_build_map_frame_yields_one_row_per_feature_and_household_size(
     assert len(frame) == 10
 
 
-def test_build_map_frame_divides_the_cap_by_the_benchmark(
+def test_build_map_frame_divides_the_cap_by_the_grenze_ohne_schluessiges_konzept(
     frame: pd.DataFrame,
 ) -> None:
-    """A 500 euro cap against a 400 euro benchmark is a ratio of 1.25."""
+    """A 500 euro cap against a Grenze ohne schlüssiges Konzept of 400 is 1.25."""
     row = frame.query("fid == 0 and household_size == 1")
     assert row["cap_ratio"].to_numpy()[0] == pytest.approx(1.25)
 
@@ -167,7 +167,7 @@ def test_colour_range_of_the_mietenstufe_spans_the_statutory_scale() -> None:
 
 
 def test_colour_range_of_a_diverging_measure_is_symmetric_about_its_midpoint() -> None:
-    """Equal departures above and below the benchmark must read equally strong."""
+    """Equal departures either side of the Grenze ohne schlüssiges Konzept match."""
     spec = get_measure("cap_ratio")
     lower, upper = compute_colour_range(pd.Series([0.8, 1.0, 1.3]), spec)
     assert lower + upper == pytest.approx(2.0)

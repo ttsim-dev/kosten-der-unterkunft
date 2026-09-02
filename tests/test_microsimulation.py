@@ -8,7 +8,9 @@ from kdu.eligibility.microsimulation import (
     CASE_COLUMNS,
     SCENARIO_FALLBACK,
     SCENARIO_LOCAL_CAP,
+    EntitlementProfile,
     _bracket_from_ladder,
+    _plot_ceiling_eur_per_month,
     assign_cap_pairs,
     build_cases,
     distinct_cap_pairs,
@@ -142,3 +144,79 @@ def test_summarise_exit_thresholds_reports_the_amplification() -> None:
     )
     summary = summarise_exit_thresholds(thresholds)
     assert summary["amplification"].iloc[0] == 2.0
+
+
+def test_plot_ceiling_clears_the_higher_exit_threshold() -> None:
+    """The income axis extends past the later of the two zero crossings."""
+    assert _plot_ceiling_eur_per_month([2071.0, 2459.0]) > 2459.0
+
+
+def test_plot_ceiling_snaps_to_a_round_income() -> None:
+    """The income axis ends on a multiple of fifty euro."""
+    assert _plot_ceiling_eur_per_month([2071.0, 2459.0]) % 50.0 == 0.0
+
+
+@pytest.fixture
+def profile() -> EntitlementProfile:
+    """A claim that falls linearly to zero under each of the two caps."""
+    incomes = np.linspace(0.0, 2800.0, 15)
+    curves = pd.concat(
+        [
+            pd.DataFrame(
+                {
+                    "scenario": scenario,
+                    "gross_income": incomes,
+                    "anspruch": np.maximum(
+                        claim_at_zero * (1.0 - incomes / exit_), 0.0
+                    ),
+                },
+            )
+            for scenario, claim_at_zero, exit_ in (
+                (SCENARIO_LOCAL_CAP, 1100.0, 2071.0),
+                (SCENARIO_FALLBACK, 1100.0 + 226.82, 2459.0),
+            )
+        ],
+        ignore_index=True,
+    )
+    return EntitlementProfile(
+        curves=curves,
+        ags="06434001",
+        household_key="single_35",
+        local_cap=539.0,
+        wohngeld_fallback_cap=765.82,
+        exit_threshold_local_cap=2071.0,
+        exit_threshold_fallback=2459.0,
+    )
+
+
+def test_entitlement_profile_reports_the_rent_not_recognised(
+    profile: EntitlementProfile,
+) -> None:
+    """The rent not recognised is the gap between the two caps."""
+    assert profile.rent_not_recognised == pytest.approx(226.82)
+
+
+def test_entitlement_profile_reports_the_shift_of_the_exit(
+    profile: EntitlementProfile,
+) -> None:
+    """The exit falls by the distance between the two zero crossings."""
+    assert profile.exit_threshold_shift == pytest.approx(388.0)
+
+
+def test_entitlement_profile_amplification_is_the_local_ratio(
+    profile: EntitlementProfile,
+) -> None:
+    """The amplification is this profile's own ratio, not a median across Gemeinden."""
+    assert profile.amplification == pytest.approx(388.0 / 226.82)
+
+
+def test_entitlement_profile_curves_stand_one_rent_difference_apart(
+    profile: EntitlementProfile,
+) -> None:
+    """At the lowest gross income the recognised rent enters the claim one for one."""
+    curves = profile.curves
+    at_lowest = curves.loc[curves["gross_income"] == curves["gross_income"].min()]
+    claims = at_lowest.set_index("scenario")["anspruch"]
+    assert claims[SCENARIO_FALLBACK] - claims[SCENARIO_LOCAL_CAP] == pytest.approx(
+        profile.rent_not_recognised,
+    )

@@ -46,8 +46,8 @@ from _wohnkosten_workbooks import (
     spread_categories,
 )
 
+# Latest month published at or before the 2026-08-31 Analysestichtag.
 REFERENCE_MONTH = "202604"
-"""Latest month published at or before the 2026-08-31 Analysestichtag."""
 
 ANNUAL_MEAN_MONTHS: tuple[str, ...] = (
     "202505",
@@ -249,11 +249,9 @@ def _download(url: str, path: Path) -> bytes:
     return payload
 
 
+# Waits between retries, in seconds. The portal answers 403, 429 or 503 when a run
+# requests faster than it serves.
 _BACKOFF_SECONDS = (30, 60, 120, 240, 480)
-"""Waits between retries, in seconds.
-
-The portal answers 403, 429 or 503 when a run requests faster than it serves.
-"""
 
 
 def _get(url: str) -> bytes:
