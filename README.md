@@ -17,10 +17,7 @@ transfer system.
 The benchmark throughout is the **Wohngeld-Höchstbetrag plus the Klimakomponente, the
 sum times 1.10**. The Sicherheitszuschlag of 10 % is the standard the
 Bundessozialgericht prescribes where a Kreis has published no schlüssiges Konzept (BSG,
-12.12.2013 - B 4 AS 87/12 R). Adding the Klimakomponente of § 12 Absatz 7 WoGG before
-that markup follows consistent instance case law and is unresolved at the
-Bundessozialgericht; `src/kdu/data_management/clean_wohngeld.py` records the decisions
-and their reasoning.
+12.12.2013 - B 4 AS 87/12 R).
 
 ## Installation and use
 
@@ -93,7 +90,3 @@ control. `pixi run view-pres` therefore fails until `pixi run pytask` has run.
 `pixi run export-pres` writes `documents/presentation.pdf`. It drives a headless
 Chromium, which npm does not install by default; run
 `npm install-scripts approve playwright-chromium` once beforehand.
-
-The map segment is presented live from `bld/map/germany_map.html` in a separate browser
-window. Slides 22 to 24, in `documents/pages/07_map_appendix.md`, are static renderings
-of the same three views, for a machine where the live map does not come up.
