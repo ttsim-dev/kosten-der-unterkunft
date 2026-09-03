@@ -554,12 +554,12 @@ def test_share_with_sign_flip_leaves_a_gemeinde_on_the_grenze_unflipped() -> Non
 
 @requires_built_data
 def test_cap_ratio_pairs_cover_every_gemeinde_observed_at_both_sizes() -> None:
-    """The collected caps place 9,368 Gemeinden at household sizes one and four."""
-    assert len(cap_ratio_pairs_across_household_sizes(_weighted_built_frame())) == 9368
+    """The collected caps place 9,635 Gemeinden at household sizes one and four."""
+    assert len(cap_ratio_pairs_across_household_sizes(_weighted_built_frame())) == 9635
 
 
 @requires_built_data
 def test_share_with_sign_flip_is_an_eighth_of_the_collected_gemeinden() -> None:
-    """In 12.1 % of Gemeinden the cap sits above the Grenze at one of the two sizes."""
+    """In 11.7 % of Gemeinden the cap sits above the Grenze at one of the two sizes."""
     pairs = cap_ratio_pairs_across_household_sizes(_weighted_built_frame())
-    assert share_with_sign_flip(pairs) == pytest.approx(0.121, abs=5e-4)
+    assert share_with_sign_flip(pairs) == pytest.approx(0.117, abs=5e-4)

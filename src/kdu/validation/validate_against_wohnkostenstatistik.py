@@ -59,8 +59,8 @@ properties govern how those numbers may be read.
   cap of a few percent is consistent with those; a large one is not, and would
   indicate the extraction rather than the exceptions.
 
-The Bundesagentur reports by Jobcenter while caps are set per Gemeinde, and 210
-of 358 Kreise publish Gemeinde-specific caps rather than one Kreis-wide figure.
+The Bundesagentur reports by Jobcenter while caps are set per Gemeinde, and 212
+of 360 Kreise publish Gemeinde-specific caps rather than one Kreis-wide figure.
 Aggregating to the Jobcenter therefore requires a choice, and this module takes
 the population-weighted mean over the Gemeinden of the Kreis: the cap faced by
 the average resident, which is the closest available match to the population

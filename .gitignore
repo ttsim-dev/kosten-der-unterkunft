@@ -65,5 +65,7 @@ src/*/_version.py
 # Working notes, deliberately not versioned
 notes/
 
-# Exported by the export-pres task; regenerate rather than commit.
-documents/presentation.pdf
+# PDFs are never versioned here. The Richtlinien live outside the repository and
+# documents/presentation.pdf is exported by the export-pres task; regenerate
+# rather than commit.
+*.pdf

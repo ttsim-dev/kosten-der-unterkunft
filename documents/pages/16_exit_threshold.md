@@ -1,4 +1,4 @@
-# But in simulations it seems to be important.
+# In simulations it depends on the context
 
 <img src="/eligibility/entitlement_profile.png" style="max-height: 340px; margin: 0.2rem auto;" />
 

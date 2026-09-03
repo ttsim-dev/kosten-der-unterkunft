@@ -1,10 +1,17 @@
 # Institutional setting
 
-- **§ 22 SGB II** — Unterkunftskosten are recognised *"in tatsächlicher Höhe, soweit
-  angemessen"*. The law never defines *angemessen*.
+**Wohngeld**
 
-- **~400 Träger** — every Kreis and kreisfreie Stadt publishes its own **Richtlinie**.
-  Collected by hand.
+- Transfer for individuals with income above the Grundsicherung threshold
+- Destatis classifies each Kreis into one of 7 **Wohngeldstufen** based on current
+  market rents
+
+**Grundsicherung**
+
+- **§ 22 SGB II** — Unterkunftskosten are recognised *"in tatsächlicher Höhe, soweit
+  angemessen"*.
+
+- **~400 Träger** — every Kreis and kreisfreie Stadt publishes its own cap.
 
 - Where a Träger has published **no schlüssiges Konzept**, the Bundessozialgericht sets
   the **Angemessenheitsgrenze ohne schlüssiges Konzept** at

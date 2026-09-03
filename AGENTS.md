@@ -23,7 +23,7 @@ decisions and their reasoning. The project reports six results and one interacti
 
 The central finding: at household size one, weighting each Gemeinde equally, the median
 Gemeinde's cap sits 4.0 % below the Grenze ohne schlüssiges Konzept while the tenth and
-ninetieth percentiles sit 20.6 % below and 17.0 % above it, and the statutory
+ninetieth percentiles sit 20.4 % below and 17.0 % above it, and the statutory
 Mietenstufe cannot repair that, because it accounts for 41 % of the variation in local
 caps while the residual variation still tracks actual market rents.
 
@@ -105,7 +105,7 @@ to rebuild, because nothing in it is downloaded.
 Germany and are never keys. The synthetic `fid` connects the joined frame to Plotly's
 GeoJSON features. Every join is guarded against silently duplicating or dropping rows.
 
-**Caps vary within a Kreis.** 210 of 358 Kreise publish Gemeinde-specific figures —
+**Caps vary within a Kreis.** 212 of 360 Kreise publish Gemeinde-specific figures —
 Kreis Steinfurt has 24 Gemeinden and 23 distinct caps under a single directive. The
 Kreis is the Träger that decides; it is not the unit at which the rule applies. Do not
 treat a Kreis as one observation without saying why.

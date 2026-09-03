@@ -7,10 +7,10 @@
 | restriction                                              | Gemeinden |
 |:---------------------------------------------------|----------:|
 | # of Gemeinden                                      |    10,980 |
-| Local cap found                                     |     9,471 |
-| Was able to assign a Mietstufe                      |     9,397 |
+| Local cap found                                     |     9,738 |
+| Was able to assign a Mietstufe                      |     9,664 |
 
 <br/>
 
-**389 distinct sources.** 282 of them (72.5 %) take effect in 2025 or 2026; only 19
+**390 distinct sources.** 282 of them (72.3 %) take effect in 2025 or 2026; only 19
 (4.9 %) predate 2024.

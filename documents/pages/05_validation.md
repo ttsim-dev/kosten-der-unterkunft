@@ -12,4 +12,4 @@ The data I collected correlates highly with the recognised rent:
 
 <br/>
 
-In **335 of 354** Jobcenter the mean recognised amount sits **below** the collected cap.
+In **337 of 356** Jobcenter the mean recognised amount sits **below** the collected cap.

@@ -13,9 +13,7 @@ berechtigte_wohnfläche_miete = 45 m² + 15 m² per further person
   Wohnfläche and angemessener Quadratmeterpreis. GETTSIM caps the two factors
   **separately**, which is a stricter rule.
 
-- The parameter file says it itself: *"Die regionalen Parameter sind unbekannt."*
-
 <br/>
 
-For a single, that warm ceiling implies **380.68 €** of Bruttokaltmiete, against a median
-local cap of **430.50 €**.
+For a single, that warm ceiling implies **378.88 €** of Bruttokaltmiete, against a
+median local cap of **428.50 €**.

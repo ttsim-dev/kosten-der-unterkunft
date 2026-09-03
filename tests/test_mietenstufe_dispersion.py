@@ -16,12 +16,12 @@ from kdu.kdu_vs_wohngeld.mietenstufe_dispersion import (
 # the classification, the number of groups it distinguishes, the unadjusted
 # between-group variance share, and the degrees-of-freedom adjusted share
 # computed independently of this code.
-N_GEMEINDEN_IN_DECOMPOSITION = 9397
+N_GEMEINDEN_IN_DECOMPOSITION = 9664
 REPORTED_DECOMPOSITION = (
-    ("mietenstufe", 7, 0.4102229427397104, 0.4098),
-    ("bundesland", 16, 0.4569447108792929, 0.4561),
-    ("mietenstufe_and_bundesland", 69, 0.7385401070501563, 0.7366),
-    ("kreis", 358, 0.9188074916766683, 0.9156),
+    ("mietenstufe", 7, 0.4102332990861013, 0.4099),
+    ("bundesland", 16, 0.4576760709380209, 0.4568),
+    ("mietenstufe_and_bundesland", 69, 0.7383439312460365, 0.7365),
+    ("kreis", 360, 0.91752235983866, 0.9143),
 )
 
 

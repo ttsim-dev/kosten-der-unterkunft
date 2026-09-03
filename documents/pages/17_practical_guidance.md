@@ -1,9 +1,9 @@
 # For anyone simulating Kosten der Unterkunft
 
-- **Have the Gemeinde (AGS)? Use its own cap**
+- **Have the Gemeinde (AGS)?** Use its own cap
 
-- **No Gemeinde? Cross Mietstufe with Bundesland.** Use an empirical Bundesland x
-  Mietstufe weighted average.
+- **No Gemeinde?** Use an empirical Bundesland x
+  Mietstufe x household size weighted average.
 
 - **Don't calibrate one correction factor across household sizes.** The gap moves with
   household size, and in 1 of 8 Gemeinden it changes direction.
