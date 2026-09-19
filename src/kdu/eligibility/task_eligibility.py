@@ -20,7 +20,7 @@ from kdu.eligibility.microsimulation import (
     plot_exit_threshold_distribution,
     summarise_exit_thresholds,
 )
-from kdu.figure_export import write_presentation_png
+from kdu.figure_export import write_presentation_image
 
 
 def task_eligibility(
@@ -54,7 +54,7 @@ def task_eligibility(
     summarise_exit_thresholds(thresholds).to_csv(table_file, index=False)
     figure = plot_exit_threshold_distribution(thresholds)
     figure.write_html(figure_file, include_plotlyjs="cdn")
-    write_presentation_png(figure, figure_png_file)
+    write_presentation_image(figure, figure_png_file)
 
 
 def task_entitlement_profile(
@@ -88,4 +88,4 @@ def task_entitlement_profile(
     name = gemeinden.set_index("ags").loc[ENTITLEMENT_PROFILE_AGS, "municipality_name"]
     figure = plot_entitlement_profile(profile, gemeinde_name=str(name))
     figure.write_html(figure_file, include_plotlyjs="cdn")
-    write_presentation_png(figure, figure_png_file)
+    write_presentation_image(figure, figure_png_file)

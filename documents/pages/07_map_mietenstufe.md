@@ -4,4 +4,4 @@
 <a href="/map/germany_map_mietenstufe.html" target="_blank"><code>/map/germany_map_mietenstufe.html</code></a>
 </div>
 
-<img src="/map/germany_map_mietenstufe.png" style="max-height: 355px; margin: 0 auto;" />
+<img src="/map/germany_map_mietenstufe.jpg" style="max-height: 355px; margin: 0 auto;" />

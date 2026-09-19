@@ -513,8 +513,8 @@ for _measure in MAP_MEASURES:
     )
 for _measure in PRESENTATION_MAP_MEASURES:
     DATA_CATALOG.add(
-        f"germany_map_{_measure}_png",
-        MAP / f"germany_map_{_measure}.png",
+        f"germany_map_{_measure}_jpeg",
+        MAP / f"germany_map_{_measure}.jpg",
     )
 
 

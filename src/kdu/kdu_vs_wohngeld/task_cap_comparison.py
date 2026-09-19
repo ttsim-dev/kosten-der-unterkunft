@@ -7,7 +7,7 @@ import pandas as pd
 from pytask import Product
 
 from kdu.config import catalog_path
-from kdu.figure_export import write_presentation_png
+from kdu.figure_export import write_presentation_image
 from kdu.kdu_vs_wohngeld.cap_comparison import (
     allocate_bedarfsgemeinschaften_to_gemeinden,
     attach_weights,
@@ -83,7 +83,7 @@ def task_cap_comparison(
     distribution_figure.write_html(distribution_file)
     difference_figure.write_html(difference_file)
     ratio_by_size_figure.write_html(ratio_by_size_file)
-    write_presentation_png(distribution_figure, distribution_png_file)
-    write_presentation_png(difference_figure, difference_png_file)
-    write_presentation_png(ratio_by_size_figure, ratio_by_size_png_file)
+    write_presentation_image(distribution_figure, distribution_png_file)
+    write_presentation_image(difference_figure, difference_png_file)
+    write_presentation_image(ratio_by_size_figure, ratio_by_size_png_file)
     table.to_csv(table_file, index=False)
