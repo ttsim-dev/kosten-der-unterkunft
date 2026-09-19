@@ -7,7 +7,7 @@ import pandas as pd
 from pytask import Product
 
 from kdu.config import catalog_path
-from kdu.figure_export import write_presentation_png
+from kdu.figure_export import write_presentation_image
 from kdu.market_rent_comparison.market_rent_correlation import (
     build_analysis_frame,
     correlation_table,
@@ -41,4 +41,4 @@ def task_market_rent_correlation(
 
     table.to_csv(table_file, index=False)
     figure.write_html(figure_file, include_plotlyjs="cdn")
-    write_presentation_png(figure, figure_png_file)
+    write_presentation_image(figure, figure_png_file)

@@ -7,7 +7,7 @@ import pandas as pd
 from pytask import Product
 
 from kdu.config import catalog_path
-from kdu.figure_export import write_presentation_png
+from kdu.figure_export import write_presentation_image
 from kdu.kdu_vs_wohngeld.cap_comparison import build_cap_comparison
 from kdu.kdu_vs_wohngeld.mietenstufe_dispersion import (
     dispersion_within_mietenstufe,
@@ -40,7 +40,7 @@ def task_mietenstufe_dispersion(
     figure = plot_mietenstufe_dispersion(frame)
 
     figure.write_html(figure_file)
-    write_presentation_png(figure, figure_png_file)
+    write_presentation_image(figure, figure_png_file)
     pd.concat(
         [
             dispersion.assign(measure="dispersion_within_mietenstufe"),

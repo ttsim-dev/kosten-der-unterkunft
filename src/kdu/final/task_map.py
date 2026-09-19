@@ -12,7 +12,7 @@ from kdu.config import (
     PRESENTATION_MAP_MEASURES,
     catalog_path,
 )
-from kdu.figure_export import write_presentation_png
+from kdu.figure_export import write_presentation_image
 from kdu.final.map_controls import build_control_script
 from kdu.geodata import load_geojson
 from kdu.maps import build_choropleth, build_map_frame, build_presentation_map
@@ -36,7 +36,7 @@ _STANDALONE_MAPS = {
     measure: catalog_path(f"germany_map_{measure}") for measure in MAP_MEASURES
 }
 _PRESENTATION_MAPS = {
-    measure: catalog_path(f"germany_map_{measure}_png")
+    measure: catalog_path(f"germany_map_{measure}_jpeg")
     for measure in PRESENTATION_MAP_MEASURES
 }
 
@@ -79,7 +79,7 @@ def task_map(
     for measure, path in standalone_map_files.items():
         _write_map(
             path=path,
-            png_path=presentation_map_files.get(measure),
+            image_path=presentation_map_files.get(measure),
             geojson=geojson,
             frame=frame,
             measures=(get_measure(measure),),
@@ -94,7 +94,7 @@ def _write_map(
     frame: pd.DataFrame,
     measures: tuple[MeasureSpec, ...],
     vintage: str,
-    png_path: Path | None = None,
+    image_path: Path | None = None,
 ) -> None:
     """Write one choropleth offering the given measures, and a static image of it.
 
@@ -105,7 +105,7 @@ def _write_map(
         measures: Measures the map offers; the first is the one it opens on
             unless several are offered, in which case `INITIAL_MEASURE` is.
         vintage: Range of document effective dates shown in the subtitle.
-        png_path: Where to also write a static image for the presentation, or
+        image_path: Where to also write a static image for the presentation, or
             `None` for a map the deck does not show. The image is framed for a
             slide by {func}`kdu.maps.build_presentation_map`; the HTML file
             keeps the screen view.
@@ -129,8 +129,8 @@ def _write_map(
         vintage=vintage,
     )
     figure.write_html(path, include_plotlyjs=PLOTLY_SOURCE, post_script=script)
-    if png_path is not None:
-        write_presentation_png(build_presentation_map(figure), png_path)
+    if image_path is not None:
+        write_presentation_image(build_presentation_map(figure), image_path)
 
 
 def _describe_vintage(valid_from: pd.Series) -> str:
